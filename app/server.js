@@ -3,6 +3,9 @@ const app = express();
 const HTTP_PORT = 4000;
 const path = require('path');
 
+// Import Swagger
+const { swaggerSpec, swaggerUi } = require('./swagger');
+
 // Import database and device manager
 const { initDatabase } = require('./db');
 const deviceManager = require('./deviceManager');
@@ -20,6 +23,18 @@ const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir);
 }
+
+// Ensure the devices directory exists in public
+const devicesDir = path.join(__dirname, 'public', 'devices');
+if (!fs.existsSync(devicesDir)) {
+    fs.mkdirSync(devicesDir, { recursive: true });
+}
+
+// Serve Swagger documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    explorer: true,
+    customCss: '.swagger-ui .topbar { display: none }'
+}));
 
 // Initialize database
 initDatabase();
@@ -115,7 +130,7 @@ app.get('/presetTare', async (req, res) => {
         const deviceId = req.query.deviceId || 1;
         const value = req.query.value;
         if (!value) {
-            return res.json({ type: 'error', error: 'Value query parameter required' });
+            return res.status(400).json({ type: 'error', error: 'Value query parameter required' });
         }
         const presetTareCmd = scaleCommands.createPresetTareCmd(value);
         res.json(await deviceManager.sendCommand(deviceId, presetTareCmd));
@@ -126,4 +141,5 @@ app.get('/presetTare', async (req, res) => {
 
 app.listen(HTTP_PORT, () => {
     console.log(`Server running at http://localhost:${HTTP_PORT}`);
+    console.log(`API documentation available at http://localhost:${HTTP_PORT}/api-docs`);
 });

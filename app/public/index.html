@@ -4,87 +4,118 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scale Control</title>
+    <title>IoT Pilot - Home</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        button { margin: 5px; padding: 10px; }
-        input { margin: 5px; padding: 8px; width: 100px; }
-        select { margin: 5px; padding: 8px; width: 200px; }
-        #response { border: 1px solid #ccc; padding: 10px; margin-top: 10px; white-space: pre-wrap; }
-        .device-controls { margin-bottom: 20px; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background-color: #3498db;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        h1, h2 {
+            margin: 0;
+        }
+        .subheader {
+            font-size: 1.2em;
+            opacity: 0.8;
+            margin-top: 10px;
+        }
+        .device-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .device-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            width: 250px;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+            cursor: pointer;
+        }
+        .device-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .card-header {
+            background-color: #3498db;
+            color: white;
+            padding: 15px;
+            text-align: center;
+        }
+        .card-body {
+            padding: 20px;
+            text-align: center;
+        }
+        .card-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        .card-description {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 <body>
-<h1>Scale Control</h1>
+<header>
+    <h1>IoT Pilot</h1>
+    <div class="subheader">Multi-Device IoT Management Platform</div>
+</header>
 
-<div class="device-controls">
-    <label for="deviceSelect">Select Device:</label>
-    <select id="deviceSelect"></select>
-    <button onclick="refreshDevices()">Refresh</button>
+<div class="container">
+    <h2>Supported Device Types</h2>
+    <p>Select a device type to manage your IoT devices</p>
+
+    <div class="device-grid">
+        <div class="device-card" onclick="window.location.href='devices/scale.html'">
+            <div class="card-header">
+                <h3>Scales</h3>
+            </div>
+            <div class="card-body">
+                <div class="card-icon">⚖️</div>
+                <p>Manage and control your connected scales</p>
+                <p class="card-description">Support for HF2211 and compatible scales</p>
+            </div>
+        </div>
+
+        <!-- Additional device types will be added here as they are supported -->
+        <!-- Example for future use:
+        <div class="device-card" onclick="window.location.href='/devices/thermostat.html'">
+            <div class="card-header">
+                <h3>Thermostats</h3>
+            </div>
+            <div class="card-body">
+                <div class="card-icon">🌡️</div>
+                <p>Manage and control your connected thermostats</p>
+                <p class="card-description">Coming soon...</p>
+            </div>
+        </div>
+        -->
+    </div>
+
+    <div class="footer">
+        <p>IoT Pilot v1.0.0 - For more information, view the <a href="/api-docs">API Documentation</a></p>
+    </div>
 </div>
-
-<button onclick="sendCommand('/weight')">Get Weight</button>
-<button onclick="sendCommand('/tare')">Tare Scale</button>
-<button onclick="sendCommand('/status')">Get Status</button>
-<button onclick="sendCommand('/clearPreset')">Clear Preset Tare</button>
-<div>
-    <input id="presetTareValue" type="number" step="0.01" min="0" max="30" placeholder="Tare (kg)">
-    <button onclick="sendPresetTare()">Set Preset Tare</button>
-</div>
-<div id="response">Response will appear here...</div>
-
-<script>
-    // Load devices when page loads
-    document.addEventListener('DOMContentLoaded', () => {
-        refreshDevices();
-    });
-
-    async function refreshDevices() {
-        try {
-            const response = await fetch('/api/devices');
-            const devices = await response.json();
-
-            const select = document.getElementById('deviceSelect');
-            select.innerHTML = '';
-
-            devices.forEach(device => {
-                const option = document.createElement('option');
-                option.value = device.id;
-                option.textContent = `${device.name} (${device.host}:${device.port})`;
-                select.appendChild(option);
-            });
-        } catch (error) {
-            document.getElementById('response').textContent = `Error loading devices: ${error.message}`;
-        }
-    }
-
-    async function sendCommand(endpoint) {
-        try {
-            const deviceId = document.getElementById('deviceSelect').value;
-            const response = await fetch(`${endpoint}?deviceId=${deviceId}`);
-            const data = await response.json();
-            document.getElementById('response').textContent = JSON.stringify(data, null, 2);
-        } catch (error) {
-            document.getElementById('response').textContent = `Error: ${error.message}`;
-        }
-    }
-
-    async function sendPresetTare() {
-        const value = document.getElementById('presetTareValue').value;
-        if (!value) {
-            document.getElementById('response').textContent = 'Error: Enter a tare value';
-            return;
-        }
-
-        const deviceId = document.getElementById('deviceSelect').value;
-        try {
-            const response = await fetch(`/presetTare?value=${value}&deviceId=${deviceId}`);
-            const data = await response.json();
-            document.getElementById('response').textContent = JSON.stringify(data, null, 2);
-        } catch (error) {
-            document.getElementById('response').textContent = `Error: ${error.message}`;
-        }
-    }
-</script>
 </body>
 </html>
