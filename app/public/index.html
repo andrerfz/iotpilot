@@ -1,3 +1,4 @@
+<!-- app/public/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,11 +9,20 @@
         body { font-family: Arial, sans-serif; margin: 20px; }
         button { margin: 5px; padding: 10px; }
         input { margin: 5px; padding: 8px; width: 100px; }
+        select { margin: 5px; padding: 8px; width: 200px; }
         #response { border: 1px solid #ccc; padding: 10px; margin-top: 10px; white-space: pre-wrap; }
+        .device-controls { margin-bottom: 20px; }
     </style>
 </head>
 <body>
 <h1>Scale Control</h1>
+
+<div class="device-controls">
+    <label for="deviceSelect">Select Device:</label>
+    <select id="deviceSelect"></select>
+    <button onclick="refreshDevices()">Refresh</button>
+</div>
+
 <button onclick="sendCommand('/weight')">Get Weight</button>
 <button onclick="sendCommand('/tare')">Tare Scale</button>
 <button onclick="sendCommand('/status')">Get Status</button>
@@ -24,9 +34,34 @@
 <div id="response">Response will appear here...</div>
 
 <script>
+    // Load devices when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+        refreshDevices();
+    });
+
+    async function refreshDevices() {
+        try {
+            const response = await fetch('/api/devices');
+            const devices = await response.json();
+
+            const select = document.getElementById('deviceSelect');
+            select.innerHTML = '';
+
+            devices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.id;
+                option.textContent = `${device.name} (${device.host}:${device.port})`;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            document.getElementById('response').textContent = `Error loading devices: ${error.message}`;
+        }
+    }
+
     async function sendCommand(endpoint) {
         try {
-            const response = await fetch(endpoint);
+            const deviceId = document.getElementById('deviceSelect').value;
+            const response = await fetch(`${endpoint}?deviceId=${deviceId}`);
             const data = await response.json();
             document.getElementById('response').textContent = JSON.stringify(data, null, 2);
         } catch (error) {
@@ -40,8 +75,10 @@
             document.getElementById('response').textContent = 'Error: Enter a tare value';
             return;
         }
+
+        const deviceId = document.getElementById('deviceSelect').value;
         try {
-            const response = await fetch(`/presetTare?value=${value}`);
+            const response = await fetch(`/presetTare?value=${value}&deviceId=${deviceId}`);
             const data = await response.json();
             document.getElementById('response').textContent = JSON.stringify(data, null, 2);
         } catch (error) {

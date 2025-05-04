@@ -1,6 +1,6 @@
 DOCKER_BINARY := docker-compose -f docker/docker-compose.yml
 
-.PHONY: start stop restart build recreate deploy shell logs
+.PHONY: start stop restart build recreate dev deploy shell logs
 
 start:
 	@$(DOCKER_BINARY) up -d --remove-orphans
@@ -16,6 +16,10 @@ recreate:
 	@$(DOCKER_BINARY) up -d --remove-orphans --no-deps --build
 
 restart: stop start
+
+# Development with live-reloading
+dev: stop
+	@$(DOCKER_BINARY) up
 
 deploy:
 	@make build

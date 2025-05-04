@@ -1,191 +1,126 @@
-const net = require('net');
 const express = require('express');
 const app = express();
 const HTTP_PORT = 4000;
-const HF2211_HOST = '192.168.1.11';
-const HF2211_PORT = 9999;
+const path = require('path');
 
-// Commands
-const weightCmd = Buffer.from([0x02, 0x30, 0x30, 0x46, 0x46, 0x52, 0x30, 0x31, 0x30, 0x37, 0x30, 0x30, 0x30, 0x30, 0x03, 0x0D, 0x0A]);
-const tareCmd = Buffer.from([0x02, 0x30, 0x30, 0x46, 0x46, 0x45, 0x31, 0x31, 0x30, 0x33, 0x30, 0x30, 0x30, 0x30, 0x03, 0x0D, 0x0A]);
-const statusCmd = Buffer.from([0x02, 0x30, 0x30, 0x46, 0x46, 0x52, 0x30, 0x31, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x03, 0x0D, 0x0A]);
-const clearPresetTareCmd = Buffer.from([0x02, 0x30, 0x30, 0x46, 0x46, 0x57, 0x30, 0x31, 0x30, 0x38, 0x30, 0x38, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x03, 0x0D, 0x0A]);
+// Import database and device manager
+const { initDatabase } = require('./db');
+const deviceManager = require('./deviceManager');
 
+// Import utility functions for scale commands
+const scaleCommands = require('./scaleCommands');
+
+// Middleware
 app.use(express.static('public'));
+app.use(express.json());
 
-function calculateLRC(data, start, end) {
-    let lrc = 0;
-    for (let i = start; i < end; i++) {
-        lrc ^= data[i];
+// Create data directory for SQLite
+const fs = require('fs');
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir);
+}
+
+// Initialize database
+initDatabase();
+
+// Device API endpoints
+app.get('/api/devices', async (req, res) => {
+    try {
+        const devices = await deviceManager.getAllDevices();
+        res.json(devices);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-    return lrc.toString(16).padStart(2, '0').toUpperCase();
-}
+});
 
-function formatPresetTareValue(value) {
-    // Convert kg to grams (XXXXXX.XX format, grams)
-    const grams = Math.round(parseFloat(value) * 1000);
-    if (isNaN(grams) || grams < 0 || grams > 30000) {
-        throw new Error('Value must be between 0.0 and 30.0 kg');
+app.get('/api/devices/:id', async (req, res) => {
+    try {
+        const device = await deviceManager.getDevice(req.params.id);
+        if (!device) {
+            return res.status(404).json({ error: 'Device not found' });
+        }
+        res.json(device);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
-    // Format as 8-digit ASCII (e.g., 1.0kg -> "00010000")
-    return grams.toString().padStart(8, '0');
-}
+});
 
-async function sendCommand(command) {
-    return new Promise((resolve, reject) => {
-        const client = new net.Socket();
-        let responseData = {};
-        let rawResponse = '';
+app.post('/api/devices', async (req, res) => {
+    try {
+        const device = await deviceManager.addDevice(req.body);
+        res.status(201).json(device);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
 
-        client.connect(HF2211_PORT, HF2211_HOST, () => {
-            console.log('Sending command:', command.toString('hex'));
-            client.write(command);
-        });
+app.put('/api/devices/:id', async (req, res) => {
+    try {
+        const device = await deviceManager.updateDevice(req.params.id, req.body);
+        res.json(device);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
 
-        client.on('data', (data) => {
-            rawResponse += data.toString('hex');
-            console.log('Raw response:', data.toString('hex'));
-            // Weight response
-            if (data.length >= 43 && data[5] === 0x72 && data.slice(6, 10).toString('ascii') === '0107') {
-                responseData.type = 'weight';
-                responseData.gross = data.slice(12, 23).toString('ascii');
-                responseData.tare = data.slice(23, 34).toString('ascii');
-                responseData.flags = data.slice(34, 38).toString('ascii');
-                responseData.lrc = data.slice(38, 40).toString('ascii');
-                const computedLRC = calculateLRC(data, 1, 38);
-                responseData.lrcValid = computedLRC === responseData.lrc;
-                console.log(`Weight LRC: computed=${computedLRC}, received=${responseData.lrc}`);
-                const grossVal = parseFloat(responseData.gross.replace('W', '').trim());
-                const tareVal = parseFloat(responseData.tare.replace('T', '').trim());
-                responseData.net = isNaN(grossVal) || isNaN(tareVal) ? null : grossVal - tareVal;
-                const flagsValue = parseInt(responseData.flags.slice(1), 16);
-                responseData.statusFlags = {
-                    zero: (flagsValue & 0x001) > 0,
-                    tare: (flagsValue & 0x002) > 0,
-                    stable: (flagsValue & 0x004) > 0,
-                    net: (flagsValue & 0x008) > 0,
-                    tareMode: (flagsValue & 0x010) > 0 ? 'preset' : 'normal',
-                    highResolution: (flagsValue & 0x020) > 0,
-                    initialZero: (flagsValue & 0x040) > 0,
-                    overload: (flagsValue & 0x080) > 0,
-                    negative: (flagsValue & 0x100) > 0,
-                    range: (flagsValue & 0x200) > 0 ? 2 : 1,
-                    presetTare: (flagsValue & 0x400) > 0
-                };
-            }
-            // Status response
-            else if (data.length >= 16 && data[5] === 0x72 && data.slice(6, 10).toString('ascii') === '0100') {
-                responseData.type = 'status';
-                const dataLength = parseInt(data.slice(10, 12).toString('ascii'), 16);
-                if (data.length >= 12 + dataLength + 3) {
-                    const statusCode = parseInt(data.slice(12, 12 + dataLength).toString('ascii'), 16);
-                    responseData.status = {
-                        code: statusCode,
-                        description: {
-                            0x00: 'No error',
-                            0x01: 'Error reading configuration from flash',
-                            0x02: 'A/D converter failure',
-                            0x03: 'Load cell signal out of range',
-                            0x04: 'Load cell signal > 30mV',
-                            0x05: 'Load cell signal < -30mV',
-                            0x06: 'Load cell power supply failure',
-                            0x07: 'Overload (> Max + 9e)',
-                            0x08: 'Negative weight (< -19e)',
-                            0x40: 'Calibration or mode warning (firmware-specific)'
-                        }[statusCode] || 'Unknown'
-                    };
-                    responseData.lrc = data.slice(12 + dataLength, 14 + dataLength).toString('ascii');
-                    const computedLRC = calculateLRC(data, 1, 12 + dataLength);
-                    responseData.lrcValid = computedLRC === responseData.lrc;
-                    console.log(`Status LRC: computed=${computedLRC}, received=${responseData.lrc}`);
-                } else {
-                    responseData.type = 'error';
-                    responseData.error = 'Incomplete status response';
-                }
-            }
-            // Tare response
-            else if (command === tareCmd && data.length >= 16) {
-                responseData.type = 'tare';
-                const functionCode = data[5] === 0x65 ? 'execute' : data[5] === 0x77 ? 'write' : 'unknown';
-                if (data[5] === 0x65 && data.slice(6, 10).toString('ascii') === '1103') {
-                    const resultCode = data.slice(12, 13).toString('ascii');
-                    responseData.message = resultCode === '0' ? 'tare executed successfully' :
-                        resultCode === '1' ? 'tare failed: Sealing switch locked' :
-                            `tare failed: Error code ${resultCode}`;
-                    responseData.lrc = data.slice(13, 15).toString('ascii');
-                    const computedLRC = calculateLRC(data, 1, 13);
-                    responseData.lrcValid = computedLRC === responseData.lrc;
-                    console.log(`Tare LRC: computed=${computedLRC}, received=${responseData.lrc}`);
-                    if (resultCode === '0') {
-                        console.log('Sending clearPresetTareCmd after tare');
-                        client.write(clearPresetTareCmd);
-                    }
-                } else {
-                    responseData.type = 'error';
-                    responseData.error = `Unexpected response: function=${functionCode}, address=${data.slice(6, 10).toString('ascii')}`;
-                }
-            }
-            // Clear preset tare or preset tare response
-            else if ((command === clearPresetTareCmd || command.slice(5, 13).toString('ascii') === 'W010808') && data.length >= 16 && data[5] === 0x77) {
-                responseData.type = command === clearPresetTareCmd ? 'clearPreset' : 'presetTare';
-                const resultCode = data.slice(12, 13).toString('ascii');
-                responseData.message = resultCode === '0' ? `${responseData.type === 'clearPreset' ? 'Preset tare cleared' : 'Preset tare set'} successfully` :
-                    resultCode === '1' ? `${responseData.type} failed: Sealing switch locked` :
-                        resultCode === '5' ? `${responseData.type} already set/clear or firmware quirk` :
-                            `${responseData.type} failed: Error code ${resultCode}`;
-                responseData.lrc = data.slice(13, 15).toString('ascii');
-                const computedLRC = calculateLRC(data, 1, 13);
-                responseData.lrcValid = computedLRC === responseData.lrc;
-                console.log(`${responseData.type} LRC: computed=${computedLRC}, received=${responseData.lrc}`);
-            }
-            else {
-                responseData.type = 'error';
-                responseData.error = 'Invalid response';
-            }
-            client.end();
-        });
+app.delete('/api/devices/:id', async (req, res) => {
+    try {
+        await deviceManager.deleteDevice(req.params.id);
+        res.status(204).send();
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
 
-        client.on('error', (err) => {
-            responseData.type = 'error';
-            responseData.error = err.message;
-            client.end();
-        });
+// Scale operation endpoints - updated to use deviceId
+app.get('/weight', async (req, res) => {
+    try {
+        const deviceId = req.query.deviceId || 1; // Default to first device if not specified
+        res.json(await deviceManager.sendCommand(deviceId, scaleCommands.weightCmd));
+    } catch (error) {
+        res.status(400).json({ type: 'error', error: error.message });
+    }
+});
 
-        client.on('close', () => {
-            if (!responseData.type && rawResponse) {
-                responseData.type = 'error';
-                responseData.error = `No response parsed, raw: ${rawResponse}`;
-            }
-            resolve(responseData);
-        });
+app.get('/tare', async (req, res) => {
+    try {
+        const deviceId = req.query.deviceId || 1;
+        res.json(await deviceManager.sendCommand(deviceId, scaleCommands.tareCmd));
+    } catch (error) {
+        res.status(400).json({ type: 'error', error: error.message });
+    }
+});
 
-        setTimeout(() => {
-            if (!responseData.type) {
-                responseData.type = 'error';
-                responseData.error = `No response from scale, raw: ${rawResponse || 'none'}`;
-                client.end();
-            }
-        }, 2000);
-    });
-}
+app.get('/status', async (req, res) => {
+    try {
+        const deviceId = req.query.deviceId || 1;
+        res.json(await deviceManager.sendCommand(deviceId, scaleCommands.statusCmd));
+    } catch (error) {
+        res.status(400).json({ type: 'error', error: error.message });
+    }
+});
 
-// Endpoints
-app.get('/weight', async (req, res) => res.json(await sendCommand(weightCmd)));
-app.get('/tare', async (req, res) => res.json(await sendCommand(tareCmd)));
-app.get('/status', async (req, res) => res.json(await sendCommand(statusCmd)));
-app.get('/clearPreset', async (req, res) => res.json(await sendCommand(clearPresetTareCmd)));
+app.get('/clearPreset', async (req, res) => {
+    try {
+        const deviceId = req.query.deviceId || 1;
+        res.json(await deviceManager.sendCommand(deviceId, scaleCommands.clearPresetTareCmd));
+    } catch (error) {
+        res.status(400).json({ type: 'error', error: error.message });
+    }
+});
+
 app.get('/presetTare', async (req, res) => {
     try {
+        const deviceId = req.query.deviceId || 1;
         const value = req.query.value;
         if (!value) {
             return res.json({ type: 'error', error: 'Value query parameter required' });
         }
-        const formattedValue = formatPresetTareValue(value);
-        const presetTareCmd = Buffer.from(`023030464657303130383038${formattedValue}03`, 'ascii');
-        const cmdBuffer = Buffer.concat([presetTareCmd, Buffer.from([0x0D, 0x0A])]);
-        res.json(await sendCommand(cmdBuffer));
+        const presetTareCmd = scaleCommands.createPresetTareCmd(value);
+        res.json(await deviceManager.sendCommand(deviceId, presetTareCmd));
     } catch (error) {
-        res.json({ type: 'error', error: error.message });
+        res.status(400).json({ type: 'error', error: error.message });
     }
 });
 

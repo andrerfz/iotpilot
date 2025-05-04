@@ -9,7 +9,16 @@ services:
     ports:
       - "4000:4000"
     volumes:
-      - ../app:/app
+      - ../app:/app  # This maps your local app directory to the container
+      - iotpilot_data:/app/data  # Persistent volume for database
+      - /app/node_modules  # Anonymous volume for node_modules
     environment:
       - NODE_ENV=production
+      - CHOKIDAR_USEPOLLING=true
     restart: unless-stopped
+    command: bash -c "npm install && npm run dev"
+    # Use the default entrypoint from Dockerfile
+
+volumes:
+  iotpilot_data:
+    driver: local

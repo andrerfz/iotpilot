@@ -1,17 +1,21 @@
-# Use official Node.js 18 slim image for smaller footprint
+# docker/node/Dockerfile
 FROM node:18-slim
 
 # Set working directory
-WORKDIR /
+WORKDIR /app
 
-# Copy application code
-COPY ../app .
+# Install nodemon globally
+RUN npm install -g nodemon
 
-# Install dependencies
-RUN npm install --production
+# Copy entrypoint script
+COPY docker/node/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Expose port
 EXPOSE 4000
 
-# Start the app
-CMD ["node", "server.js"]
+# Set the entrypoint script
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Default command
+CMD ["npm", "run", "dev"]
