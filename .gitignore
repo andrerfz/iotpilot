@@ -1,4 +1,7 @@
-/node_modules
 /vendor
-/.idea
+/.idea/
 /node_modules/
+
+.env
+*.log
+.DS_Store

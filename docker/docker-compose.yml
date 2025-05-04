@@ -1,0 +1,15 @@
+name: iotpilot
+
+services:
+  iotpilot:
+    build:
+      context: ..
+      dockerfile: docker/node/Dockerfile
+    container_name: iotpilot-app
+    ports:
+      - "4000:4000"
+    volumes:
+      - ../app:/app
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
