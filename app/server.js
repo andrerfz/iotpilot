@@ -13,6 +13,18 @@ const deviceManager = require('./deviceManager');
 // Import utility functions for scale commands
 const scaleCommands = require('./scaleCommands');
 
+// Get hostname from environment
+const HOST_NAME = process.env.HOST_NAME || 'localhost';
+
+// CORS middleware to allow API access from other domains when needed
+app.use((req, res, next) => {
+    // Allow requests from the same hostname served via HTTPS
+    res.setHeader('Access-Control-Allow-Origin', `https://${HOST_NAME}`);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    next();
+});
+
 // Middleware
 app.use(express.static('public'));
 app.use(express.json());
@@ -139,7 +151,18 @@ app.get('/presetTare', async (req, res) => {
     }
 });
 
+// Server info endpoint - useful for checking connectivity
+app.get('/server-info', (req, res) => {
+    res.json({
+        hostname: HOST_NAME,
+        serverTime: new Date().toISOString(),
+        version: require('./package.json').version,
+        status: 'running'
+    });
+});
+
 app.listen(HTTP_PORT, () => {
-    console.log(`Server running at http://localhost:${HTTP_PORT}`);
-    console.log(`API documentation available at http://localhost:${HTTP_PORT}/api-docs`);
+    console.log(`Server running at http://${HOST_NAME}:${HTTP_PORT}`);
+    console.log(`API documentation available at http://${HOST_NAME}:${HTTP_PORT}/api-docs`);
+    console.log(`Access the server securely via https://${HOST_NAME}`);
 });

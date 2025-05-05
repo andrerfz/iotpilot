@@ -1,0 +1,41 @@
+api:
+  insecure: true  # Enable the dashboard (set to false in production)
+  dashboard: true
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+  file:
+    directory: /etc/traefik/config/
+    watch: true
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: ${ACME_EMAIL}
+      storage: /etc/traefik/acme/acme.json
+      tlsChallenge: {}
+  selfsigned:
+    acme:
+      storage: /etc/traefik/acme/selfsigned.json
+      caServer: "https://acme-staging-v02.api.letsencrypt.org/directory"  # Staging server for testing
+      tlsChallenge: {}
+
+# Enable access logs
+accessLog: {}
+
+# Log level
+log:
+  level: "INFO"

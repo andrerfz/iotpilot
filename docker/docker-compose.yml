@@ -6,8 +6,8 @@ services:
       context: ..
       dockerfile: docker/node/Dockerfile
     container_name: iotpilot-app
-    ports:
-      - "4000:4000"
+    expose:
+      - "4000"  # Only expose to internal network, Traefik will handle external access
     volumes:
       - ../app:/app  # This maps your local app directory to the container
       - iotpilot_data:/app/data  # Persistent volume for database
@@ -15,10 +15,62 @@ services:
     environment:
       - NODE_ENV=production
       - CHOKIDAR_USEPOLLING=true
+      - HOST_NAME=${HOST_NAME:-iotpilot.local}  # Make hostname available to the app
     restart: unless-stopped
     command: bash -c "npm install && npm run dev"
-    # Use the default entrypoint from Dockerfile
+    networks:
+      - iotpilot_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.iotpilot.rule=Host(`${HOST_NAME:-iotpilot.local}`)"
+      - "traefik.http.routers.iotpilot.entrypoints=websecure"
+      - "traefik.http.routers.iotpilot.tls=true"
+      - "traefik.http.services.iotpilot.loadbalancer.server.port=4000"
+      - "traefik.http.routers.iotpilot.service=iotpilot"
+
+  traefik:
+    image: traefik:v2.10
+    container_name: iotpilot-traefik
+    ports:
+      - "80:80"     # HTTP
+      - "443:443"   # HTTPS
+      - "8080:8080" # Traefik Dashboard (optional, can be removed in production)
+    volumes:
+      - ./docker/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./docker/traefik/config:/etc/traefik/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # To monitor containers
+      - traefik_certs:/etc/traefik/acme  # For storing certificates
+    networks:
+      - iotpilot_network
+    restart: unless-stopped
+    depends_on:
+      - iotpilot
+
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: iotpilot-tailscale
+    volumes:
+      - tailscale_state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    network_mode: "host"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}
+      - TS_ROUTES=192.168.0.0/16
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_EXTRA_ARGS=--hostname=${HOST_NAME:-iotpilot}
+    restart: unless-stopped
 
 volumes:
   iotpilot_data:
     driver: local
+  tailscale_state:
+    driver: local
+  traefik_certs:
+    driver: local
+
+networks:
+  iotpilot_network:
+    driver: bridge
