@@ -32,12 +32,12 @@ services:
     image: traefik:v2.10
     container_name: iotpilot-traefik
     ports:
-      - "80:80"     # HTTP
-      - "443:443"   # HTTPS
-      - "8080:8080" # Traefik Dashboard (optional, can be removed in production)
+      - "4080:80"     # HTTP
+      - "4443:443"    # HTTPS
+      - "8080:8080"   # Traefik Dashboard (optional, can be removed in production)
     volumes:
-      - ./docker/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./docker/traefik/config:/etc/traefik/config:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/config:/etc/traefik/config:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro  # To monitor containers
       - traefik_certs:/etc/traefik/acme  # For storing certificates
     networks:
@@ -62,6 +62,8 @@ services:
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_EXTRA_ARGS=--hostname=${HOST_NAME:-iotpilot}
     restart: unless-stopped
+    env_file:
+      - ../.env  # Use env_file to explicitly load environment variables
 
 volumes:
   iotpilot_data:
