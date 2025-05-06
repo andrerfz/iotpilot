@@ -1,3 +1,4 @@
+# docker/traefik/traefik.yml
 api:
   insecure: true  # Enable the dashboard (set to false in production)
   dashboard: true
@@ -21,17 +22,15 @@ providers:
     directory: /etc/traefik/config/
     watch: true
 
+# Use only one certificate resolver
 certificatesResolvers:
   letsencrypt:
     acme:
-      email: ${ACME_EMAIL}
+      email: "${ACME_EMAIL}"
       storage: /etc/traefik/acme/acme.json
       tlsChallenge: {}
-  selfsigned:
-    acme:
-      storage: /etc/traefik/acme/selfsigned.json
-      caServer: "https://acme-staging-v02.api.letsencrypt.org/directory"  # Staging server for testing
-      tlsChallenge: {}
+
+# Remove the selfsigned resolver
 
 # Enable access logs
 accessLog: {}

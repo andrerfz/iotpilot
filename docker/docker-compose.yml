@@ -26,15 +26,16 @@ services:
       - "traefik.http.routers.iotpilot.entrypoints=websecure"
       - "traefik.http.routers.iotpilot.tls=true"
       - "traefik.http.services.iotpilot.loadbalancer.server.port=4000"
-      - "traefik.http.routers.iotpilot.service=iotpilot"
+      - "traefik.http.middlewares.iotpilot-stripprefix.stripprefix.prefixes=/"
+      - "traefik.http.routers.iotpilot.middlewares=iotpilot-stripprefix"
 
   traefik:
     image: traefik:v2.10
     container_name: iotpilot-traefik
     ports:
-      - "4080:80"     # HTTP
-      - "4443:443"    # HTTPS
-      - "8080:8080"   # Traefik Dashboard (optional, can be removed in production)
+      - "4080:80"      # Map the standard HTTP port
+      - "4443:443"    # Map the standard HTTPS port
+      - "8080:8080"  # Traefik Dashboard (optional, can be removed in production)
     volumes:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/config:/etc/traefik/config:ro
@@ -45,6 +46,8 @@ services:
     restart: unless-stopped
     depends_on:
       - iotpilot
+    environment:
+      - ACME_EMAIL=${ACME_EMAIL:-contact@iotpilot.tk}
 
   tailscale:
     image: tailscale/tailscale:latest
@@ -62,8 +65,6 @@ services:
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_EXTRA_ARGS=--hostname=${HOST_NAME:-iotpilot}
     restart: unless-stopped
-    env_file:
-      - ../.env  # Use env_file to explicitly load environment variables
 
 volumes:
   iotpilot_data:

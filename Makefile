@@ -1,4 +1,4 @@
-DOCKER_BINARY := docker-compose -f docker/docker-compose.yml
+DOCKER_BINARY := docker-compose -f docker/docker-compose.yml --env-file .env
 
 .PHONY: start stop restart build recreate dev deploy shell logs setup tailscale-status tailscale-up tailscale-down generate-certs force-generate-certs setup-hosts install-cert traefik-dashboard
 
