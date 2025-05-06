@@ -1,4 +1,3 @@
-# docker/traefik/traefik.yml
 api:
   insecure: true  # Enable the dashboard (set to false in production)
   dashboard: true
@@ -6,13 +5,14 @@ api:
 entryPoints:
   web:
     address: ":80"
-    http:
-      redirections:
-        entryPoint:
-          to: websecure
-          scheme: https
   websecure:
     address: ":443"
+    http:
+      tls:
+        domains:
+          - main: "iotpilot.local"
+            sans:
+              - "*.iotpilot.local"
 
 providers:
   docker:
@@ -22,15 +22,12 @@ providers:
     directory: /etc/traefik/config/
     watch: true
 
-# Use only one certificate resolver
 certificatesResolvers:
   letsencrypt:
     acme:
       email: "${ACME_EMAIL}"
       storage: /etc/traefik/acme/acme.json
       tlsChallenge: {}
-
-# Remove the selfsigned resolver
 
 # Enable access logs
 accessLog: {}

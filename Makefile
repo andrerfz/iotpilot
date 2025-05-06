@@ -1,6 +1,6 @@
 DOCKER_BINARY := docker-compose -f docker/docker-compose.yml --env-file .env
 
-.PHONY: start stop restart build recreate dev deploy shell logs setup tailscale-status tailscale-up tailscale-down generate-certs force-generate-certs setup-hosts install-cert traefik-dashboard
+.PHONY: start stop restart build recreate dev deploy deploy-skip-certs shell logs setup tailscale-status tailscale-up tailscale-down generate-certs force-generate-certs setup-hosts install-cert traefik-dashboard
 
 start:
 	@$(DOCKER_BINARY) up -d --remove-orphans
@@ -27,6 +27,11 @@ dev: stop
 deploy:
 	@make build
 	@make setup
+	@make start
+	@make tailscale-up
+
+deploy-skip-certs:
+	@make build
 	@make start
 	@make tailscale-up
 

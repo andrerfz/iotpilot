@@ -22,20 +22,23 @@ services:
       - iotpilot_network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.iotpilot.rule=Host(`${HOST_NAME:-iotpilot.local}`)"
-      - "traefik.http.routers.iotpilot.entrypoints=websecure"
-      - "traefik.http.routers.iotpilot.tls=true"
+      # HTTP Router
+      - "traefik.http.routers.iotpilot-http.rule=Host(`${HOST_NAME:-iotpilot.local}`)"
+      - "traefik.http.routers.iotpilot-http.entrypoints=web"
+      # HTTPS Router
+      - "traefik.http.routers.iotpilot-https.rule=Host(`${HOST_NAME:-iotpilot.local}`)"
+      - "traefik.http.routers.iotpilot-https.entrypoints=websecure"
+      - "traefik.http.routers.iotpilot-https.tls=true"
+      # Common configuration
       - "traefik.http.services.iotpilot.loadbalancer.server.port=4000"
-      - "traefik.http.middlewares.iotpilot-stripprefix.stripprefix.prefixes=/"
-      - "traefik.http.routers.iotpilot.middlewares=iotpilot-stripprefix"
 
   traefik:
     image: traefik:v2.10
     container_name: iotpilot-traefik
     ports:
-      - "4080:80"      # Map the standard HTTP port
-      - "4443:443"    # Map the standard HTTPS port
-      - "8080:8080"  # Traefik Dashboard (optional, can be removed in production)
+      - "4080:80"      # Map HTTP port
+      - "4443:443"     # Map HTTPS port
+      - "8080:8080"    # Traefik Dashboard
     volumes:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/config:/etc/traefik/config:ro
