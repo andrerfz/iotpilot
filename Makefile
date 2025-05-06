@@ -32,7 +32,7 @@ non-sudo-setup: generate-certs update-tailscale-domain
 
 setup:
 	@echo "Running setup operations that require sudo..."
-	@sudo make sudo-setup
+	@make sudo-setup
 	@echo "Running setup operations that don't require sudo..."
 	@make non-sudo-setup
 	@echo "Setup complete! Your system is now configured for IoT Pilot."
@@ -47,8 +47,9 @@ deploy-app: build start tailscale-up
 	@echo "Application deployed successfully."
 
 deploy:
+	@make stop
 	@echo "Running setup operations that require sudo..."
-	@sudo make sudo-setup
+	@make sudo-setup
 	@echo "Running setup operations that don't require sudo..."
 	@make non-sudo-setup
 	@echo "Deploying application..."

@@ -6,8 +6,8 @@ services:
       context: ..
       dockerfile: docker/node/Dockerfile
     container_name: iotpilot-app
-    expose:
-      - "4000"  # Only expose to internal network, Traefik will handle external access
+    ports:
+      - "4000"  # Para acceso directo al servidor Node.js
     volumes:
       - ../app:/app  # This maps your local app directory to the container
       - iotpilot_data:/app/data  # Persistent volume for database
@@ -28,8 +28,8 @@ services:
       - "traefik.http.routers.iotpilot-https.rule=Host(`${HOST_NAME:-iotpilot.local}`)"
       - "traefik.http.routers.iotpilot-https.entrypoints=websecure"
       - "traefik.http.routers.iotpilot-https.tls=true"
-      # Tailscale domain router (only created if TAILSCALE_DOMAIN is set)
-      - "traefik.http.routers.iotpilot-tailscale.rule=Host(`${TAILSCALE_DOMAIN:-no-tailscale-domain}`)"
+      # Tailscale domain router - Ahora usando la variable definida
+      - "traefik.http.routers.iotpilot-tailscale.rule=Host(`${TAILSCALE_DOMAIN}`)"
       - "traefik.http.routers.iotpilot-tailscale.entrypoints=websecure"
       - "traefik.http.routers.iotpilot-tailscale.tls=true"
       # Common configuration
@@ -61,15 +61,17 @@ services:
     volumes:
       - tailscale_state:/var/lib/tailscale
       - /dev/net/tun:/dev/net/tun
-    network_mode: "service:iotpilot"
+    # Esto comparte la red con el contenedor de Traefik para acceder a sus servicios
+    network_mode: "service:traefik"
     cap_add:
       - NET_ADMIN
       - NET_RAW
     environment:
       - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}
-      - TS_ROUTES=192.168.0.0/16
       - TS_STATE_DIR=/var/lib/tailscale
-      - TS_EXTRA_ARGS=--hostname=${HOST_NAME:-iotpilot} --accept-routes --advertise-exit-node
+      - TS_USERSPACE=false
+      # Parámetros básicos sin anunciar rutas ni exit nodes
+      - TS_EXTRA_ARGS=--hostname=${HOST_NAME:-iotpilot.local} --reset
     restart: unless-stopped
 
 volumes:
