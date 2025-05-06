@@ -22,13 +22,16 @@ services:
       - iotpilot_network
     labels:
       - "traefik.enable=true"
-      # HTTP Router
+      # Local domain routers
       - "traefik.http.routers.iotpilot-http.rule=Host(`${HOST_NAME:-iotpilot.local}`)"
       - "traefik.http.routers.iotpilot-http.entrypoints=web"
-      # HTTPS Router
       - "traefik.http.routers.iotpilot-https.rule=Host(`${HOST_NAME:-iotpilot.local}`)"
       - "traefik.http.routers.iotpilot-https.entrypoints=websecure"
       - "traefik.http.routers.iotpilot-https.tls=true"
+      # Tailscale domain router (only created if TAILSCALE_DOMAIN is set)
+      - "traefik.http.routers.iotpilot-tailscale.rule=Host(`${TAILSCALE_DOMAIN:-no-tailscale-domain}`)"
+      - "traefik.http.routers.iotpilot-tailscale.entrypoints=websecure"
+      - "traefik.http.routers.iotpilot-tailscale.tls=true"
       # Common configuration
       - "traefik.http.services.iotpilot.loadbalancer.server.port=4000"
 
@@ -58,7 +61,7 @@ services:
     volumes:
       - tailscale_state:/var/lib/tailscale
       - /dev/net/tun:/dev/net/tun
-    network_mode: "host"
+    network_mode: "service:iotpilot"
     cap_add:
       - NET_ADMIN
       - NET_RAW

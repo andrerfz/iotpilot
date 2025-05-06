@@ -10,9 +10,12 @@ entryPoints:
     http:
       tls:
         domains:
-          - main: "iotpilot.local"
+          - main: "${HOST_NAME:-iotpilot.local}"
             sans:
-              - "*.iotpilot.local"
+              - "*.${HOST_NAME:-iotpilot.local}"
+          - main: "${TAILSCALE_DOMAIN:-}"
+            sans:
+              - "*.${TAILSCALE_DOMAIN:-}"
 
 providers:
   docker:

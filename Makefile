@@ -1,6 +1,6 @@
 DOCKER_BINARY := docker-compose -f docker/docker-compose.yml --env-file .env
 
-.PHONY: start stop restart build recreate dev deploy deploy-skip-certs shell logs setup tailscale-status tailscale-up tailscale-down generate-certs force-generate-certs setup-hosts install-cert traefik-dashboard
+.PHONY: start stop restart build recreate dev deploy deploy-skip-certs shell logs setup sudo-setup non-sudo-setup tailscale-status tailscale-up tailscale-down generate-certs force-generate-certs install-cert setup-hosts update-tailscale-domain traefik-dashboard
 
 start:
 	@$(DOCKER_BINARY) up -d --remove-orphans
@@ -17,6 +17,20 @@ recreate:
 
 restart: stop start
 
+# Split setup into sudo and non-sudo parts
+sudo-setup: install-cert setup-hosts
+	@echo "Sudo operations completed successfully."
+
+non-sudo-setup: generate-certs update-tailscale-domain
+	@echo "Non-sudo operations completed successfully."
+
+setup:
+	@echo "Running setup operations that require sudo..."
+	@sudo make sudo-setup
+	@echo "Running setup operations that don't require sudo..."
+	@make non-sudo-setup
+	@echo "Setup complete! Your system is now configured for IoT Pilot."
+
 # Development with live-reloading
 dev: stop
 	@make tailscale-down
@@ -24,11 +38,17 @@ dev: stop
 	@$(DOCKER_BINARY) up
 	@make tailscale-up
 
+# Split deploy into parts to minimize sudo usage
+deploy-app: build start tailscale-up
+	@echo "Application deployed successfully."
+
 deploy:
-	@make build
-	@make setup
-	@make start
-	@make tailscale-up
+	@echo "Running setup operations that require sudo..."
+	@sudo make sudo-setup
+	@echo "Running setup operations that don't require sudo..."
+	@make non-sudo-setup
+	@echo "Deploying application..."
+	@make deploy-app
 
 deploy-skip-certs:
 	@make build
@@ -68,12 +88,12 @@ setup-hosts:
 	if grep -q "$$HOST_NAME" /etc/hosts; then \
 		echo "Hostname $$HOST_NAME already exists in /etc/hosts"; \
 	else \
-		sudo sh -c "echo '127.0.0.1 $$HOST_NAME' >> /etc/hosts"; \
+		echo "127.0.0.1 $$HOST_NAME" >> /etc/hosts; \
 		echo "Added $$HOST_NAME to your hosts file"; \
 	fi
 
-setup: generate-certs install-cert setup-hosts
-	@echo "Setup complete! Your system is now configured for IoT Pilot."
+update-tailscale-domain:
+	@bash docker/scripts/update-tailscale-domain.sh
 
 traefik-dashboard:
 	@HOST_NAME=$$(grep HOST_NAME .env | cut -d '=' -f2 | tr -d '"' | tr -d "'"); \
