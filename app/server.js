@@ -49,7 +49,9 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 }));
 
 // Initialize database
-initDatabase();
+initDatabase().then((r) => {
+
+});
 
 // Device API endpoints
 app.get('/api/devices', async (req, res) => {
@@ -100,52 +102,93 @@ app.delete('/api/devices/:id', async (req, res) => {
     }
 });
 
-// Scale operation endpoints - updated to use deviceId
-app.get('/weight', async (req, res) => {
+// IP-based scale operation endpoints
+app.get('/api/devices/:ip/weight', async (req, res) => {
     try {
-        const deviceId = req.query.deviceId || 1; // Default to first device if not specified
-        res.json(await deviceManager.sendCommand(deviceId, scaleCommands.weightCmd));
+        // Normalize the IP address (trim whitespace)
+        const ip = req.params.ip.trim();
+        console.log(`Processing weight request for IP: ${ip}`);
+
+        const device = await deviceManager.findDeviceByIP(ip);
+        if (!device) {
+            console.log(`Device with IP ${ip} not found in database`);
+            return res.status(404).json({ type: 'error', error: 'Device with specified IP not found' });
+        }
+
+        console.log(`Found device with ID ${device.id} for IP ${ip}`);
+        const result = await deviceManager.sendCommand(device.id, scaleCommands.weightCmd);
+        res.json(result);
+    } catch (error) {
+        console.error(`Error processing weight request: ${error.message}`);
+        res.status(400).json({ type: 'error', error: error.message });
+    }
+});
+
+app.get('/api/devices/:ip/tare', async (req, res) => {
+    try {
+        const ip = req.params.ip.trim();
+        console.log(`Processing tare request for IP: ${ip}`);
+
+        const device = await deviceManager.findDeviceByIP(ip);
+        if (!device) {
+            return res.status(404).json({ type: 'error', error: 'Device with specified IP not found' });
+        }
+
+        res.json(await deviceManager.sendCommand(device.id, scaleCommands.tareCmd));
     } catch (error) {
         res.status(400).json({ type: 'error', error: error.message });
     }
 });
 
-app.get('/tare', async (req, res) => {
+app.get('/api/devices/:ip/status', async (req, res) => {
     try {
-        const deviceId = req.query.deviceId || 1;
-        res.json(await deviceManager.sendCommand(deviceId, scaleCommands.tareCmd));
+        const ip = req.params.ip.trim();
+        console.log(`Processing status request for IP: ${ip}`);
+
+        const device = await deviceManager.findDeviceByIP(ip);
+        if (!device) {
+            return res.status(404).json({ type: 'error', error: 'Device with specified IP not found' });
+        }
+
+        res.json(await deviceManager.sendCommand(device.id, scaleCommands.statusCmd));
     } catch (error) {
         res.status(400).json({ type: 'error', error: error.message });
     }
 });
 
-app.get('/status', async (req, res) => {
+app.get('/api/devices/:ip/clearPreset', async (req, res) => {
     try {
-        const deviceId = req.query.deviceId || 1;
-        res.json(await deviceManager.sendCommand(deviceId, scaleCommands.statusCmd));
+        const ip = req.params.ip.trim();
+        console.log(`Processing clearPreset request for IP: ${ip}`);
+
+        const device = await deviceManager.findDeviceByIP(ip);
+        if (!device) {
+            return res.status(404).json({ type: 'error', error: 'Device with specified IP not found' });
+        }
+
+        res.json(await deviceManager.sendCommand(device.id, scaleCommands.clearPresetTareCmd));
     } catch (error) {
         res.status(400).json({ type: 'error', error: error.message });
     }
 });
 
-app.get('/clearPreset', async (req, res) => {
+app.get('/api/devices/:ip/presetTare', async (req, res) => {
     try {
-        const deviceId = req.query.deviceId || 1;
-        res.json(await deviceManager.sendCommand(deviceId, scaleCommands.clearPresetTareCmd));
-    } catch (error) {
-        res.status(400).json({ type: 'error', error: error.message });
-    }
-});
+        const ip = req.params.ip.trim();
+        console.log(`Processing presetTare request for IP: ${ip}`);
 
-app.get('/presetTare', async (req, res) => {
-    try {
-        const deviceId = req.query.deviceId || 1;
+        const device = await deviceManager.findDeviceByIP(ip);
+        if (!device) {
+            return res.status(404).json({ type: 'error', error: 'Device with specified IP not found' });
+        }
+
         const value = req.query.value;
         if (!value) {
             return res.status(400).json({ type: 'error', error: 'Value query parameter required' });
         }
+
         const presetTareCmd = scaleCommands.createPresetTareCmd(value);
-        res.json(await deviceManager.sendCommand(deviceId, presetTareCmd));
+        res.json(await deviceManager.sendCommand(device.id, presetTareCmd));
     } catch (error) {
         res.status(400).json({ type: 'error', error: error.message });
     }

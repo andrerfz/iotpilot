@@ -1,5 +1,7 @@
 const net = require('net');
 const { Device } = require('./db');
+const scaleCommands = require('./scaleCommands');
+const scaleParser = require('./scaleParser');
 
 class DeviceManager {
     constructor() {
@@ -60,11 +62,18 @@ class DeviceManager {
                 rawResponse += data.toString('hex');
                 console.log('Raw response:', data.toString('hex'));
 
-                // Process response based on command type
-                // This would contain all the response parsing logic from server.js
-                // For brevity, I'm not including the full parsing logic here
+                // Use the scaleParser to parse the response
+                responseData = scaleParser.parseResponse(data, command, rawResponse);
 
-                client.end();
+                // Special case for tare command: if successful, send clear preset tare command
+                if (responseData.type === 'tare' &&
+                    responseData.success &&
+                    Buffer.compare(command, scaleCommands.tareCmd) === 0) {
+                    console.log('Sending clearPresetTareCmd after successful tare');
+                    client.write(scaleCommands.clearPresetTareCmd);
+                } else {
+                    client.end();
+                }
             });
 
             client.on('error', (err) => {
@@ -89,6 +98,19 @@ class DeviceManager {
                 }
             }, 2000);
         });
+    }
+
+    // Find a device by IP address (host)
+    async findDeviceByIP(ip) {
+        try {
+            const devices = await this.getAllDevices();
+            // Normalize IP addresses for comparison (trim whitespace)
+            const normalizedIp = ip.trim();
+            return devices.find(d => d.host.trim() === normalizedIp);
+        } catch (error) {
+            console.error(`Error finding device by IP: ${error.message}`);
+            return null;
+        }
     }
 }
 

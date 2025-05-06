@@ -1,4 +1,3 @@
-<!-- app/public/devices/control.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -175,6 +174,13 @@
             color: #e74c3c;
             font-weight: bold;
         }
+        .api-version-toggle {
+            margin-bottom: 20px;
+            text-align: right;
+        }
+        .api-version-toggle label {
+            margin-right: 10px;
+        }
     </style>
 </head>
 <body>
@@ -186,6 +192,13 @@
 <div class="container">
     <div class="actions-bar">
         <button class="btn btn-back" onclick="window.location.href='/devices/scale.html'">Back to Devices</button>
+        <div class="api-version-toggle">
+            <label for="api-version">API Version:</label>
+            <select id="api-version" onchange="updateApiVersion()">
+                <option value="ip-based">IP-based API (Recommended)</option>
+                <option value="legacy">Legacy API</option>
+            </select>
+        </div>
     </div>
 
     <div class="control-panel">
@@ -233,9 +246,15 @@
 </div>
 
 <script>
-    // Get device ID from URL
+    // Get device information from URL
     const urlParams = new URLSearchParams(window.location.search);
     const deviceId = urlParams.get('deviceId');
+
+    // Store device data
+    let currentDevice = null;
+
+    // API version preference (default to IP-based)
+    let useIpBasedApi = true;
 
     console.log('URL Parameters:', window.location.search);
     console.log('Parsed Device ID:', deviceId);
@@ -248,7 +267,22 @@
     // Load device information when page loads
     document.addEventListener('DOMContentLoaded', () => {
         loadDeviceInfo();
+
+        // Set API version from localStorage if available
+        const savedApiVersion = localStorage.getItem('iotPilotApiVersion');
+        if (savedApiVersion) {
+            useIpBasedApi = savedApiVersion === 'ip-based';
+            document.getElementById('api-version').value = savedApiVersion;
+        }
     });
+
+    // Update API version preference
+    function updateApiVersion() {
+        const apiVersion = document.getElementById('api-version').value;
+        useIpBasedApi = apiVersion === 'ip-based';
+        localStorage.setItem('iotPilotApiVersion', apiVersion);
+        console.log(`API Version set to: ${apiVersion}`);
+    }
 
     // Load device information
     async function loadDeviceInfo() {
@@ -262,6 +296,7 @@
             }
 
             const device = await response.json();
+            currentDevice = device; // Store device data for later use
             renderDeviceInfo(device);
             document.getElementById('device-title').textContent = device.name;
             document.title = `IoT Pilot - ${device.name} Control`;
@@ -277,7 +312,7 @@
     function renderDeviceInfo(device) {
         const container = document.getElementById('device-info-container');
 
-        const html = `
+        container.innerHTML = `
                 <div class="info-row">
                     <span class="info-label">ID:</span>
                     <span>${device.id}</span>
@@ -309,8 +344,6 @@
                     <span>${device.description || 'No description provided'}</span>
                 </div>
             `;
-
-        container.innerHTML = html;
     }
 
     // Send command to device
@@ -318,7 +351,16 @@
         try {
             showLoading('loading');
 
-            const response = await fetch(`/${command}?deviceId=${deviceId}`);
+            let url;
+            if (useIpBasedApi && currentDevice) {
+                // Use IP-based API (new approach)
+                url = `/api/devices/${currentDevice.host}/${command}`;
+            } else {
+                // Use legacy API with deviceId as query parameter
+                url = `/${command}?deviceId=${deviceId}`;
+            }
+
+            const response = await fetch(url);
             const data = await response.json();
 
             document.getElementById('response').textContent = JSON.stringify(data, null, 2);
@@ -341,7 +383,16 @@
         try {
             showLoading('loading');
 
-            const response = await fetch(`/presetTare?value=${value}&deviceId=${deviceId}`);
+            let url;
+            if (useIpBasedApi && currentDevice) {
+                // Use IP-based API (new approach)
+                url = `/api/devices/${currentDevice.host}/presetTare?value=${value}`;
+            } else {
+                // Use legacy API with deviceId as query parameter
+                url = `/presetTare?value=${value}&deviceId=${deviceId}`;
+            }
+
+            const response = await fetch(url);
             const data = await response.json();
 
             document.getElementById('response').textContent = JSON.stringify(data, null, 2);

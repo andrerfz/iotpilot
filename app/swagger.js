@@ -152,6 +152,10 @@ const options = {
             {
                 name: 'Scale Operations',
                 description: 'Scale device operations'
+            },
+            {
+                name: 'IP-based Scale Operations',
+                description: 'Scale device operations using IP address (recommended)'
             }
         ]
     },
@@ -290,9 +294,176 @@ const swaggerSpec = swaggerJsdoc(options);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  *
+ * /api/devices/{ip}/weight:
+ *   get:
+ *     summary: Get weight reading by IP
+ *     description: Get the current weight reading from a scale device by IP address
+ *     tags: [IP-based Scale Operations]
+ *     parameters:
+ *       - in: path
+ *         name: ip
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: IP address of the device
+ *     responses:
+ *       200:
+ *         description: Weight reading
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/WeightResponse'
+ *       404:
+ *         description: Device with specified IP not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       400:
+ *         description: Invalid request or device error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *
+ * /api/devices/{ip}/tare:
+ *   get:
+ *     summary: Tare the scale by IP
+ *     description: Reset the scale to zero at the current weight by IP address
+ *     tags: [IP-based Scale Operations]
+ *     parameters:
+ *       - in: path
+ *         name: ip
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: IP address of the device
+ *     responses:
+ *       200:
+ *         description: Tare operation response
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Response'
+ *       404:
+ *         description: Device with specified IP not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       400:
+ *         description: Invalid request or device error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *
+ * /api/devices/{ip}/status:
+ *   get:
+ *     summary: Get device status by IP
+ *     description: Retrieve the current status of a device by IP address
+ *     tags: [IP-based Scale Operations]
+ *     parameters:
+ *       - in: path
+ *         name: ip
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: IP address of the device
+ *     responses:
+ *       200:
+ *         description: Device status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/StatusResponse'
+ *       404:
+ *         description: Device with specified IP not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       400:
+ *         description: Invalid request or device error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *
+ * /api/devices/{ip}/clearPreset:
+ *   get:
+ *     summary: Clear preset tare by IP
+ *     description: Clear any preset tare value on the scale by IP address
+ *     tags: [IP-based Scale Operations]
+ *     parameters:
+ *       - in: path
+ *         name: ip
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: IP address of the device
+ *     responses:
+ *       200:
+ *         description: Clear preset tare operation response
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Response'
+ *       404:
+ *         description: Device with specified IP not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       400:
+ *         description: Invalid request or device error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *
+ * /api/devices/{ip}/presetTare:
+ *   get:
+ *     summary: Set preset tare by IP
+ *     description: Set a preset tare value on the scale by IP address
+ *     tags: [IP-based Scale Operations]
+ *     parameters:
+ *       - in: path
+ *         name: ip
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: IP address of the device
+ *       - in: query
+ *         name: value
+ *         schema:
+ *           type: number
+ *           format: float
+ *         required: true
+ *         description: Tare value to set (in kg)
+ *     responses:
+ *       200:
+ *         description: Set preset tare operation response
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Response'
+ *       404:
+ *         description: Device with specified IP not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       400:
+ *         description: Invalid request or device error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *
  * /weight:
  *   get:
- *     summary: Get weight reading
+ *     summary: Get weight reading (Legacy)
  *     description: Get the current weight reading from a scale device
  *     tags: [Scale Operations]
  *     parameters:
@@ -318,7 +489,7 @@ const swaggerSpec = swaggerJsdoc(options);
  *
  * /tare:
  *   get:
- *     summary: Tare the scale
+ *     summary: Tare the scale (Legacy)
  *     description: Reset the scale to zero at the current weight
  *     tags: [Scale Operations]
  *     parameters:
@@ -344,7 +515,7 @@ const swaggerSpec = swaggerJsdoc(options);
  *
  * /status:
  *   get:
- *     summary: Get device status
+ *     summary: Get device status (Legacy)
  *     description: Retrieve the current status of a device
  *     tags: [Scale Operations]
  *     parameters:
@@ -370,7 +541,7 @@ const swaggerSpec = swaggerJsdoc(options);
  *
  * /clearPreset:
  *   get:
- *     summary: Clear preset tare
+ *     summary: Clear preset tare (Legacy)
  *     description: Clear any preset tare value on the scale
  *     tags: [Scale Operations]
  *     parameters:
@@ -396,7 +567,7 @@ const swaggerSpec = swaggerJsdoc(options);
  *
  * /presetTare:
  *   get:
- *     summary: Set preset tare
+ *     summary: Set preset tare (Legacy)
  *     description: Set a preset tare value on the scale
  *     tags: [Scale Operations]
  *     parameters:
