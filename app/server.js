@@ -18,8 +18,8 @@ const HOST_NAME = process.env.HOST_NAME || 'localhost';
 
 // CORS middleware to allow API access from other domains when needed
 app.use((req, res, next) => {
-    // Allow requests from the same hostname served via HTTPS
-    res.setHeader('Access-Control-Allow-Origin', `https://${HOST_NAME}`);
+    // Allow requests from the same hostname served via HTTPS and Tailscale
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     next();
@@ -151,18 +151,9 @@ app.get('/presetTare', async (req, res) => {
     }
 });
 
-// Server info endpoint - useful for checking connectivity
-app.get('/server-info', (req, res) => {
-    res.json({
-        hostname: HOST_NAME,
-        serverTime: new Date().toISOString(),
-        version: require('./package.json').version,
-        status: 'running'
-    });
-});
-
-app.listen(HTTP_PORT, () => {
-    console.log(`Server running at http://${HOST_NAME}:${HTTP_PORT}`);
-    console.log(`API documentation available at http://${HOST_NAME}:${HTTP_PORT}/api-docs`);
-    console.log(`Access the server securely via https://${HOST_NAME}`);
+// Bind to all interfaces (0.0.0.0) instead of just the hostname
+app.listen(HTTP_PORT, '0.0.0.0', () => {
+    console.log(`Server running at http://${HOST_NAME}:4080`);
+    console.log(`Access the server securely via https://${HOST_NAME}:4443`);
+    console.log(`API documentation available at http://${HOST_NAME}:4080/api-docs`);
 });

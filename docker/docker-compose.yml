@@ -69,7 +69,7 @@ services:
       - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}
       - TS_ROUTES=192.168.0.0/16
       - TS_STATE_DIR=/var/lib/tailscale
-      - TS_EXTRA_ARGS=--hostname=${HOST_NAME:-iotpilot}
+      - TS_EXTRA_ARGS=--hostname=${HOST_NAME:-iotpilot} --accept-routes --advertise-exit-node
     restart: unless-stopped
 
 volumes:

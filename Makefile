@@ -1,6 +1,9 @@
 DOCKER_BINARY := docker-compose -f docker/docker-compose.yml --env-file .env
 
-.PHONY: sudo-docker start stop restart build recreate dev deploy deploy-skip-certs shell logs setup sudo-setup non-sudo-setup tailscale-status tailscale-up tailscale-down generate-certs force-generate-certs install-cert setup-hosts update-tailscale-domain traefik-dashboard
+.PHONY: sudo-docker start stop restart build recreate dev deploy deploy-skip-certs
+	shell logs-nodejs logs-tailscale logs-traefik setup sudo-setup non-sudo-setup
+	tailscale-status tailscale-up tailscale-down generate-certs force-generate-certs
+	install-cert setup-hosts update-tailscale-domain traefik-dashboard
 
 sudo-docker:
 	@sudo chown -R $(shell whoami) ~/.docker
@@ -59,8 +62,14 @@ deploy-skip-certs:
 shell:
 	@$(DOCKER_BINARY) exec iotpilot bash
 
-logs:
+logs-nodejs:
 	@$(DOCKER_BINARY) logs -f iotpilot
+
+logs-tailscale:
+	@$(DOCKER_BINARY) logs -f tailscale
+
+logs-traefik:
+	@$(DOCKER_BINARY) logs -f traefik
 
 # Tailscale specific commands
 tailscale-status:
