@@ -152,23 +152,23 @@ run_installation() {
   info "Setting up hosts file..."
   make setup-hosts || warn "Hosts file setup failed, continuing anyway"
 
-  # Build and start the application
-  info "Building and starting IotPilot..."
-
-  # Use Raspberry Pi specific compose file if on a Raspberry Pi
+  # Modify Makefile for Raspberry Pi if needed
   if [ "$IS_RASPBERRY" = true ]; then
-    info "Using Raspberry Pi specific Docker configuration..."
-    # Check if the raspberry compose file exists
+    # Check if docker-compose.raspberry.yml exists
     if [ -f "docker/docker-compose.raspberry.yml" ]; then
-      # Modify DOCKER_BINARY in Makefile to use the raspberry file
+      info "Updating Makefile to use Raspberry Pi specific configuration..."
+      # Backup the original Makefile
+      cp Makefile Makefile.original
+      # Modify the DOCKER_BINARY variable to use the Raspberry Pi specific compose file
       sed -i 's/DOCKER_BINARY := docker-compose -f docker\/docker-compose.yml/DOCKER_BINARY := docker-compose -f docker\/docker-compose.raspberry.yml/' Makefile
       info "Updated Makefile to use Raspberry Pi specific docker-compose file"
     else
-      warn "Raspberry Pi compose file not found, using standard file"
+      warn "Raspberry Pi specific docker-compose file not found, using standard configuration"
     fi
   fi
 
-  # Use root for Docker commands to ensure it works
+  # Build and start the application
+  info "Building and starting IotPilot..."
   make build || error "Build failed"
   make start || error "Failed to start IotPilot"
 

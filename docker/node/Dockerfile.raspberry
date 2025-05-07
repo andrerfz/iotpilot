@@ -1,12 +1,12 @@
-# docker/node/Dockerfile.raspberry
-# Specialized Dockerfile for Raspberry Pi devices (especially Pi Zero with ARMv6)
-FROM --platform=linux/arm/v6 node:18-slim
+# Specialized Dockerfile for Raspberry Pi Zero (ARMv6)
+FROM arm32v6/node:14-alpine
 
 # Set working directory
 WORKDIR /app
 
 # Install nodemon globally
-RUN npm install -g nodemon
+# Use a specific older version of nodemon that's known to work on ARMv6
+RUN npm install -g nodemon@2.0.15
 
 # Copy entrypoint script
 COPY docker/node/entrypoint.sh /entrypoint.sh
