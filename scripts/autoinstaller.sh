@@ -34,11 +34,16 @@ fi
 # Detect Raspberry Pi model
 if [ ! -f /proc/device-tree/model ]; then
   warn "Could not detect Raspberry Pi model. Installation might not work correctly."
+  IS_RASPBERRY=false
 else
   MODEL=$(tr -d '\0' < /proc/device-tree/model)
   info "Detected: $MODEL"
-  if [[ "$MODEL" != *"Raspberry Pi"* ]]; then
-    warn "This doesn't appear to be a Raspberry Pi. Installation might not work correctly."
+  if [[ "$MODEL" == *"Raspberry Pi"* ]]; then
+    IS_RASPBERRY=true
+    info "Raspberry Pi detected - will use specialized configuration"
+  else
+    IS_RASPBERRY=false
+    warn "This doesn't appear to be a Raspberry Pi. Will use standard configuration."
   fi
 fi
 
@@ -123,120 +128,9 @@ setup_environment() {
   fi
 }
 
-# Fix docker-compose.yml file for compatibility
-fix_docker_compose_file() {
-  info "Fixing docker-compose.yml for compatibility..."
-
-  local compose_file="docker/docker-compose.yml"
-
-  if [ ! -f "$compose_file" ]; then
-    error "docker-compose.yml not found at expected location: $compose_file"
-  fi
-
-  # Create a backup of the original file
-  cp "$compose_file" "${compose_file}.original"
-
-  # Check Docker Compose version
-  local compose_version
-  if command -v docker-compose &>/dev/null; then
-    compose_version=$(docker-compose --version | grep -oP '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
-    info "Detected Docker Compose version: $compose_version"
-  else
-    compose_version="unknown"
-    warn "Docker Compose not found or version could not be determined"
-  fi
-
-  # Fix the 'name:' directive
-  info "Removing 'name:' directive from docker-compose.yml..."
-  if grep -q "^name:" "$compose_file"; then
-    sed -i '/^name:/d' "$compose_file"
-  fi
-
-  # Add version if it doesn't exist
-  if ! grep -q "^version:" "$compose_file"; then
-    # Add version: '3' at the beginning of the file
-    sed -i '1s/^/version: "3"\n\n/' "$compose_file"
-    info "Added version: '3' to docker-compose.yml"
-  fi
-
-  # Ensure services are properly defined
-  if ! grep -q "^services:" "$compose_file"; then
-    # First, count how many spaces are commonly used for indentation
-    local indent=$(grep -P '^\s+\w+:' "$compose_file" | head -1 | sed 's/[^ ].*//')
-    if [ -z "$indent" ]; then
-      indent="  " # Default to 2 spaces if we can't determine
-    fi
-
-    # Wrap all current service definitions in a services: section
-    # 1. Create a temp file with just 'services:'
-    echo "services:" > temp_compose.yml
-
-    # 2. Add the rest of the file with proper indentation
-    while IFS= read -r line; do
-      if [[ "$line" =~ ^[a-zA-Z] && ! "$line" =~ ^version: ]]; then
-        # This is a top-level directive that's not 'version:'
-        echo "$indent$line" >> temp_compose.yml
-      else
-        # Add more indentation to all already indented lines
-        if [[ "$line" =~ ^[[:space:]] ]]; then
-          echo "$indent$line" >> temp_compose.yml
-        else
-          # Pass through other lines unchanged (like version:, blank lines)
-          echo "$line" >> temp_compose.yml
-        fi
-      fi
-    done < <(grep -v "^version:" "$compose_file")
-
-    # 3. Replace the original file
-    mv temp_compose.yml "$compose_file"
-    info "Wrapped service definitions in 'services:' section"
-  fi
-
-  # Validate the modified file
-  if ! docker-compose -f "$compose_file" config --quiet 2>/dev/null; then
-    warn "Modified docker-compose.yml may still have issues. Manual review recommended."
-    info "Original file saved as ${compose_file}.original"
-  else
-    info "docker-compose.yml successfully modified for compatibility"
-  fi
-}
-
-# Fix Makefile Docker Compose command
-fix_makefile() {
-  info "Fixing Makefile Docker Compose command if needed..."
-
-  local makefile="Makefile"
-
-  if [ ! -f "$makefile" ]; then
-    warn "Makefile not found at expected location: $makefile"
-    return
-  fi
-
-  # Create a backup of the original file
-  cp "$makefile" "${makefile}.original"
-
-  # Check if it uses docker-compose command
-  if grep -q "docker-compose " "$makefile"; then
-    info "Makefile uses 'docker-compose' command. No changes needed."
-  else
-    # Check if it's using the new docker compose command format
-    if grep -q "docker compose " "$makefile"; then
-      # Change to the old format for compatibility
-      sed -i 's/docker compose /docker-compose /g' "$makefile"
-      info "Updated Makefile to use 'docker-compose' command for compatibility"
-    fi
-  fi
-}
-
 # Run installation
 run_installation() {
   info "Starting IotPilot installation..."
-
-  # Fix docker-compose.yml file
-  fix_docker_compose_file
-
-  # Fix Makefile if needed
-  fix_makefile
 
   # Ensure correct permissions
   if [ "$SUDO_USER" ]; then
@@ -258,8 +152,23 @@ run_installation() {
   info "Setting up hosts file..."
   make setup-hosts || warn "Hosts file setup failed, continuing anyway"
 
-  # Build and start the application with root permissions to ensure it works
+  # Build and start the application
   info "Building and starting IotPilot..."
+
+  # Use Raspberry Pi specific compose file if on a Raspberry Pi
+  if [ "$IS_RASPBERRY" = true ]; then
+    info "Using Raspberry Pi specific Docker configuration..."
+    # Check if the raspberry compose file exists
+    if [ -f "docker/docker-compose.raspberry.yml" ]; then
+      # Modify DOCKER_BINARY in Makefile to use the raspberry file
+      sed -i 's/DOCKER_BINARY := docker-compose -f docker\/docker-compose.yml/DOCKER_BINARY := docker-compose -f docker\/docker-compose.raspberry.yml/' Makefile
+      info "Updated Makefile to use Raspberry Pi specific docker-compose file"
+    else
+      warn "Raspberry Pi compose file not found, using standard file"
+    fi
+  fi
+
+  # Use root for Docker commands to ensure it works
   make build || error "Build failed"
   make start || error "Failed to start IotPilot"
 
