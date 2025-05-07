@@ -8,15 +8,8 @@ WORKDIR /app
 # Use a specific older version of nodemon that's known to work on ARMv6
 RUN npm install -g nodemon@2.0.15
 
-# Copy entrypoint script
-COPY docker/node/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
 # Expose port
 EXPOSE 4000
-
-# Set the entrypoint script
-ENTRYPOINT ["/entrypoint.sh"]
 
 # Default command
 CMD ["npm", "run", "dev"]
