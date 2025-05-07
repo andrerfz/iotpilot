@@ -63,8 +63,15 @@ install_dependencies() {
 
   # Add current user to docker group to avoid using sudo with docker
   if [ "$SUDO_USER" ]; then
-    usermod -aG docker $SUDO_USER
-    info "Added user $SUDO_USER to the docker group"
+    info "Adding user $SUDO_USER to the docker group..."
+    usermod -aG docker "$SUDO_USER"
+
+    # Ensure the user has the right permissions immediately
+    # This is needed for the current session
+    if [ -S /var/run/docker.sock ]; then
+      chmod 666 /var/run/docker.sock
+      info "Set temporary permissions on docker.sock for immediate use"
+    fi
   else
     warn "Could not determine the sudo user. You may need to add your user to the docker group manually."
   fi
@@ -85,7 +92,7 @@ clone_repository() {
 
   # Set correct ownership if we're running with sudo
   if [ "$SUDO_USER" ]; then
-    chown -R $SUDO_USER:$SUDO_USER "$repo_dir"
+    chown -R "$SUDO_USER:$SUDO_USER" "$repo_dir"
   fi
 
   cd "$repo_dir" || error "Failed to enter repository directory"
@@ -116,34 +123,107 @@ setup_environment() {
   fi
 }
 
-# Check and fix docker-compose compatibility
-fix_docker_compose_compat() {
-  info "Checking Docker Compose compatibility..."
+# Fix docker-compose.yml file for compatibility
+fix_docker_compose_file() {
+  info "Fixing docker-compose.yml for compatibility..."
 
-  # Get docker-compose version
+  local compose_file="docker/docker-compose.yml"
+
+  if [ ! -f "$compose_file" ]; then
+    error "docker-compose.yml not found at expected location: $compose_file"
+  fi
+
+  # Create a backup of the original file
+  cp "$compose_file" "${compose_file}.original"
+
+  # Check Docker Compose version
   local compose_version
-  compose_version=$(docker-compose -v | grep -oP '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+  if command -v docker-compose &>/dev/null; then
+    compose_version=$(docker-compose --version | grep -oP '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+    info "Detected Docker Compose version: $compose_version"
+  else
+    compose_version="unknown"
+    warn "Docker Compose not found or version could not be determined"
+  fi
 
-  info "Detected Docker Compose version: $compose_version"
+  # Fix the 'name:' directive
+  info "Removing 'name:' directive from docker-compose.yml..."
+  if grep -q "^name:" "$compose_file"; then
+    sed -i '/^name:/d' "$compose_file"
+  fi
 
-  # Compare versions - if older than 1.28, we need to remove the 'name:' directive
-  local major minor patch
-  IFS='.' read -r major minor patch <<< "$compose_version"
+  # Add version if it doesn't exist
+  if ! grep -q "^version:" "$compose_file"; then
+    # Add version: '3' at the beginning of the file
+    sed -i '1s/^/version: "3"\n\n/' "$compose_file"
+    info "Added version: '3' to docker-compose.yml"
+  fi
 
-  # If we can't detect the version or it's too old, modify the docker-compose.yml
-  if [ -z "$major" ] || [ "$major" -lt 1 ] || ([ "$major" -eq 1 ] && [ "$minor" -lt 28 ]); then
-    info "Older Docker Compose version detected. Adjusting docker-compose.yml for compatibility..."
+  # Ensure services are properly defined
+  if ! grep -q "^services:" "$compose_file"; then
+    # First, count how many spaces are commonly used for indentation
+    local indent=$(grep -P '^\s+\w+:' "$compose_file" | head -1 | sed 's/[^ ].*//')
+    if [ -z "$indent" ]; then
+      indent="  " # Default to 2 spaces if we can't determine
+    fi
 
-    # Check if docker-compose.yml exists and has the name directive
-    local compose_file="docker/docker-compose.yml"
-    if [ -f "$compose_file" ] && grep -q "^name:" "$compose_file"; then
-      # Create a backup
-      cp "$compose_file" "${compose_file}.bak"
+    # Wrap all current service definitions in a services: section
+    # 1. Create a temp file with just 'services:'
+    echo "services:" > temp_compose.yml
 
-      # Remove the name line
-      sed -i '/^name:/d' "$compose_file"
+    # 2. Add the rest of the file with proper indentation
+    while IFS= read -r line; do
+      if [[ "$line" =~ ^[a-zA-Z] && ! "$line" =~ ^version: ]]; then
+        # This is a top-level directive that's not 'version:'
+        echo "$indent$line" >> temp_compose.yml
+      else
+        # Add more indentation to all already indented lines
+        if [[ "$line" =~ ^[[:space:]] ]]; then
+          echo "$indent$line" >> temp_compose.yml
+        else
+          # Pass through other lines unchanged (like version:, blank lines)
+          echo "$line" >> temp_compose.yml
+        fi
+      fi
+    done < <(grep -v "^version:" "$compose_file")
 
-      info "Modified docker-compose.yml for compatibility with Docker Compose version $compose_version"
+    # 3. Replace the original file
+    mv temp_compose.yml "$compose_file"
+    info "Wrapped service definitions in 'services:' section"
+  fi
+
+  # Validate the modified file
+  if ! docker-compose -f "$compose_file" config --quiet 2>/dev/null; then
+    warn "Modified docker-compose.yml may still have issues. Manual review recommended."
+    info "Original file saved as ${compose_file}.original"
+  else
+    info "docker-compose.yml successfully modified for compatibility"
+  fi
+}
+
+# Fix Makefile Docker Compose command
+fix_makefile() {
+  info "Fixing Makefile Docker Compose command if needed..."
+
+  local makefile="Makefile"
+
+  if [ ! -f "$makefile" ]; then
+    warn "Makefile not found at expected location: $makefile"
+    return
+  fi
+
+  # Create a backup of the original file
+  cp "$makefile" "${makefile}.original"
+
+  # Check if it uses docker-compose command
+  if grep -q "docker-compose " "$makefile"; then
+    info "Makefile uses 'docker-compose' command. No changes needed."
+  else
+    # Check if it's using the new docker compose command format
+    if grep -q "docker compose " "$makefile"; then
+      # Change to the old format for compatibility
+      sed -i 's/docker compose /docker-compose /g' "$makefile"
+      info "Updated Makefile to use 'docker-compose' command for compatibility"
     fi
   fi
 }
@@ -152,6 +232,12 @@ fix_docker_compose_compat() {
 run_installation() {
   info "Starting IotPilot installation..."
 
+  # Fix docker-compose.yml file
+  fix_docker_compose_file
+
+  # Fix Makefile if needed
+  fix_makefile
+
   # Ensure correct permissions
   if [ "$SUDO_USER" ]; then
     # Run make commands as the regular user
@@ -159,9 +245,6 @@ run_installation() {
   else
     SUDO_CMD=""
   fi
-
-  # Check and fix docker-compose compatibility
-  fix_docker_compose_compat
 
   # Generate certificates
   info "Generating SSL certificates..."
@@ -175,15 +258,21 @@ run_installation() {
   info "Setting up hosts file..."
   make setup-hosts || warn "Hosts file setup failed, continuing anyway"
 
-  # Build and start the application
+  # Build and start the application with root permissions to ensure it works
   info "Building and starting IotPilot..."
-  $SUDO_CMD make build || error "Build failed"
-  $SUDO_CMD make start || error "Failed to start IotPilot"
+  make build || error "Build failed"
+  make start || error "Failed to start IotPilot"
 
   # Update Tailscale domain if configured
   if grep -q "TAILSCALE_AUTH_KEY=tskey" .env; then
     info "Setting up Tailscale..."
-    $SUDO_CMD make update-tailscale-domain || warn "Tailscale domain update failed, continuing anyway"
+    make update-tailscale-domain || warn "Tailscale domain update failed, continuing anyway"
+  fi
+
+  # Set ownership of all files back to the user
+  if [ "$SUDO_USER" ]; then
+    chown -R "$SUDO_USER:$SUDO_USER" .
+    info "Set ownership of all files to $SUDO_USER"
   fi
 }
 
@@ -194,7 +283,7 @@ create_systemd_service() {
   SERVICE_FILE="/etc/systemd/system/iotpilot.service"
 
   # Create the service file
-  cat > $SERVICE_FILE << EOL
+  cat > "$SERVICE_FILE" << EOL
 [Unit]
 Description=IotPilot IoT Device Management
 After=docker.service
@@ -255,6 +344,7 @@ show_information() {
   # If we're running as root but with sudo, remind about docker permissions
   if [ "$SUDO_USER" ]; then
     echo "NOTICE: You may need to log out and back in for docker permissions to take effect."
+    echo "        For now, Docker commands have been set up to work in this session."
     echo
   fi
 }
