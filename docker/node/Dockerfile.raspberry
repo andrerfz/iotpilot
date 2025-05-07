@@ -1,3 +1,4 @@
+# docker/node/Dockerfile.raspberry
 # Specialized Dockerfile for Raspberry Pi Zero (ARMv6)
 FROM arm32v6/node:14-alpine
 
@@ -11,5 +12,5 @@ RUN npm install -g nodemon@2.0.15
 # Expose port
 EXPOSE 4000
 
-# Default command
-CMD ["npm", "run", "dev"]
+# No separate entrypoint script - run commands directly
+CMD ["sh", "-c", "mkdir -p /app/data && chmod 777 /app/data && npm run dev"]
