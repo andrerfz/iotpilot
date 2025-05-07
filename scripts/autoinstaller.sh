@@ -116,6 +116,38 @@ setup_environment() {
   fi
 }
 
+# Check and fix docker-compose compatibility
+fix_docker_compose_compat() {
+  info "Checking Docker Compose compatibility..."
+
+  # Get docker-compose version
+  local compose_version
+  compose_version=$(docker-compose -v | grep -oP '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+
+  info "Detected Docker Compose version: $compose_version"
+
+  # Compare versions - if older than 1.28, we need to remove the 'name:' directive
+  local major minor patch
+  IFS='.' read -r major minor patch <<< "$compose_version"
+
+  # If we can't detect the version or it's too old, modify the docker-compose.yml
+  if [ -z "$major" ] || [ "$major" -lt 1 ] || ([ "$major" -eq 1 ] && [ "$minor" -lt 28 ]); then
+    info "Older Docker Compose version detected. Adjusting docker-compose.yml for compatibility..."
+
+    # Check if docker-compose.yml exists and has the name directive
+    local compose_file="docker/docker-compose.yml"
+    if [ -f "$compose_file" ] && grep -q "^name:" "$compose_file"; then
+      # Create a backup
+      cp "$compose_file" "${compose_file}.bak"
+
+      # Remove the name line
+      sed -i '/^name:/d' "$compose_file"
+
+      info "Modified docker-compose.yml for compatibility with Docker Compose version $compose_version"
+    fi
+  fi
+}
+
 # Run installation
 run_installation() {
   info "Starting IotPilot installation..."
@@ -127,6 +159,9 @@ run_installation() {
   else
     SUDO_CMD=""
   fi
+
+  # Check and fix docker-compose compatibility
+  fix_docker_compose_compat
 
   # Generate certificates
   info "Generating SSL certificates..."
