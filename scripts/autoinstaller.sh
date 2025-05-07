@@ -2,7 +2,7 @@
 
 # IotPilot Autoinstaller
 # This script automates the installation of IotPilot on a new Raspberry Pi device
-# Usage: curl -sSL https://github.com/andrerfz/iotpilot/blob/main/scripts/autoinstaller.sh | sudo bash
+# Usage: curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/autoinstaller.sh | sudo bash
 set -e
 
 # Colors for better output
