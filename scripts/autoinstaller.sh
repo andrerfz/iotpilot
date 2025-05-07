@@ -3,6 +3,7 @@
 # IotPilot Autoinstaller
 # This script automates the installation of IotPilot on a new Raspberry Pi device
 # Usage: curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/autoinstaller.sh | sudo bash
+
 set -e
 
 # Colors for better output
@@ -75,18 +76,12 @@ clone_repository() {
 
   if [ -d "$repo_dir" ]; then
     warn "Directory $repo_dir already exists"
-    read -p "Would you like to remove it and install fresh? (y/n): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-      info "Removing existing installation..."
-      rm -rf "$repo_dir"
-    else
-      error "Installation aborted by user"
-    fi
+    info "Removing existing installation..."
+    rm -rf "$repo_dir"
   fi
 
   info "Cloning IotPilot repository to $repo_dir..."
-  git clone https://github.com/username/IotPilot.git "$repo_dir" || error "Failed to clone repository"
+  git clone https://github.com/andrerfz/iotpilot.git "$repo_dir" || error "Failed to clone repository"
 
   # Set correct ownership if we're running with sudo
   if [ "$SUDO_USER" ]; then
@@ -240,12 +235,8 @@ main() {
   echo "This script will install IotPilot and its dependencies."
   echo "The installation process might take several minutes."
   echo
-  read -p "Do you want to continue? (y/n): " -n 1 -r
-  echo
-  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    error "Installation aborted by user"
-  fi
 
+  # Non-interactive mode: proceed without confirmation
   info "Starting installation process..."
   install_dependencies
   clone_repository
