@@ -1,4 +1,4 @@
-version: "3"
+name: iotpilot
 
 services:
   iotpilot:
@@ -7,17 +7,18 @@ services:
       dockerfile: docker/node/Dockerfile.raspberry
     container_name: iotpilot-app
     ports:
-      - "4000"  # Para acceso directo al servidor Node.js
+      - "4000"  # For direct access to Node.js server
     volumes:
-      - ../app:/app  # This maps your local app directory to the container
+      - ../app:/app  # Map local app directory to container
       - iotpilot_data:/app/data  # Persistent volume for database
       - /app/node_modules  # Anonymous volume for node_modules
     environment:
       - NODE_ENV=production
       - CHOKIDAR_USEPOLLING=true
-      - HOST_NAME=${HOST_NAME:-iotpilot.local}  # Make hostname available to the app
+      - HOST_NAME=${HOST_NAME:-iotpilot.local}
     restart: unless-stopped
-    command: bash -c "npm install && npm run dev"
+    # Simplified command - entrypoint script will handle startup
+    command: ["npm", "install", "&&", "npm", "run", "dev"]
     networks:
       - iotpilot_network
     labels:
@@ -28,7 +29,7 @@ services:
       - "traefik.http.routers.iotpilot-https.rule=Host(`${HOST_NAME:-iotpilot.local}`)"
       - "traefik.http.routers.iotpilot-https.entrypoints=websecure"
       - "traefik.http.routers.iotpilot-https.tls=true"
-      # Tailscale domain router - Ahora usando la variable definida
+      # Tailscale domain router
       - "traefik.http.routers.iotpilot-tailscale.rule=Host(`${TAILSCALE_DOMAIN}`)"
       - "traefik.http.routers.iotpilot-tailscale.entrypoints=websecure"
       - "traefik.http.routers.iotpilot-tailscale.tls=true"
@@ -61,7 +62,7 @@ services:
     volumes:
       - tailscale_state:/var/lib/tailscale
       - /dev/net/tun:/dev/net/tun
-    # Esto comparte la red con el contenedor de Traefik para acceder a sus servicios
+    # Share network with Traefik container
     network_mode: "service:traefik"
     cap_add:
       - NET_ADMIN
@@ -70,7 +71,7 @@ services:
       - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_USERSPACE=false
-      # Parámetros básicos sin anunciar rutas ni exit nodes
+      # Basic parameters without advertising routes or exit nodes
       - TS_EXTRA_ARGS=--hostname=${HOST_NAME:-iotpilot.local} --reset
     restart: unless-stopped
 
