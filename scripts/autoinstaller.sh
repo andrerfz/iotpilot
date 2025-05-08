@@ -59,7 +59,8 @@ install_dependencies() {
     curl \
     docker.io \
     docker-compose \
-    jq || error "Failed to install required packages"
+    jq \
+    avahi-daemon || error "Failed to install required packages"
 
   # Enable and start Docker service
   info "Enabling and starting Docker service..."
@@ -79,6 +80,47 @@ install_dependencies() {
     fi
   else
     warn "Could not determine the sudo user. You may need to add your user to the docker group manually."
+  fi
+}
+
+# Configure mDNS for local hostname resolution
+setup_mdns() {
+  info "Setting up mDNS for local hostname resolution..."
+
+  # Set hostname to iotpilot
+  hostnamectl set-hostname iotpilot || warn "Failed to set hostname to iotpilot"
+
+  # Update /etc/hosts to include hostname
+  if grep -q "iotpilot" /etc/hosts; then
+    info "Hostname already present in /etc/hosts"
+  else
+    # Add hostname to hosts file for local resolution
+    sed -i '/127.0.1.1/d' /etc/hosts
+    echo "127.0.1.1       iotpilot" >> /etc/hosts
+    info "Added iotpilot to /etc/hosts"
+  fi
+
+  # Configure Avahi
+  if [ -f /etc/avahi/avahi-daemon.conf ]; then
+    # Make sure .local is used and hostname is not changed
+    sed -i 's/#domain-name=.*/domain-name=local/' /etc/avahi/avahi-daemon.conf
+    sed -i 's/#host-name=.*/host-name=iotpilot/' /etc/avahi/avahi-daemon.conf
+    sed -i 's/#publish-hinfo=.*/publish-hinfo=yes/' /etc/avahi/avahi-daemon.conf
+    sed -i 's/#publish-addresses=.*/publish-addresses=yes/' /etc/avahi/avahi-daemon.conf
+
+    info "Configured Avahi daemon for mDNS"
+  else
+    warn "Avahi configuration file not found. Skipping mDNS configuration."
+  fi
+
+  # Restart Avahi to apply changes
+  systemctl restart avahi-daemon || warn "Failed to restart Avahi daemon"
+
+  # Verify mDNS is working
+  if ping -c 1 iotpilot.local &>/dev/null; then
+    info "mDNS setup verified: iotpilot.local is reachable!"
+  else
+    warn "mDNS setup might not be working. Devices may need time to discover the service."
   fi
 }
 
@@ -107,24 +149,29 @@ clone_repository() {
 setup_environment() {
   info "Setting up environment..."
 
+  # Update the .env.example to ensure HOST_NAME is set to iotpilot.local
+  if grep -q "HOST_NAME=" .env.example; then
+    sed -i 's/HOST_NAME=.*/HOST_NAME=iotpilot.local/' .env.example
+    info "Updated .env.example to use iotpilot.local as hostname"
+  fi
+
   # Create .env file from example if it doesn't exist
   if [ ! -f .env ]; then
     cp .env.example .env || error "Failed to create .env file"
     info "Created .env file from example"
 
-    # Generate a random hostname if needed
-    RANDOM_SUFFIX=$(head /dev/urandom | tr -dc a-z0-9 | head -c 6)
-    HOSTNAME="iotpilot-$RANDOM_SUFFIX.local"
-
-    # Update the hostname in .env
-    sed -i "s/HOST_NAME=.*/HOST_NAME=$HOSTNAME/" .env
-    info "Set hostname to $HOSTNAME"
+    # Ensure the hostname is set to iotpilot.local
+    sed -i "s/HOST_NAME=.*/HOST_NAME=iotpilot.local/" .env
+    info "Set hostname to iotpilot.local in .env file"
 
     echo "You may want to edit the .env file to customize your installation:"
     echo "  - Set your Tailscale auth key if you want to use Tailscale"
     echo "  - Adjust other settings as needed"
   else
-    info ".env file already exists, keeping existing configuration"
+    info ".env file already exists, updating hostname..."
+    # Update hostname in existing .env
+    sed -i "s/HOST_NAME=.*/HOST_NAME=iotpilot.local/" .env
+    info "Updated hostname to iotpilot.local in existing .env file"
   fi
 }
 
@@ -195,8 +242,9 @@ create_systemd_service() {
   cat > "$SERVICE_FILE" << EOL
 [Unit]
 Description=IotPilot IoT Device Management
-After=docker.service
+After=docker.service avahi-daemon.service
 Requires=docker.service
+Wants=avahi-daemon.service
 
 [Service]
 Type=oneshot
@@ -220,8 +268,8 @@ EOL
 
 # Display final information
 show_information() {
-  # Get hostname from .env file
-  HOSTNAME=$(grep HOST_NAME .env | cut -d '=' -f2 | tr -d '"' | tr -d "'" || echo "iotpilot.local")
+  # Always use iotpilot.local as the hostname
+  HOSTNAME="iotpilot.local"
 
   echo
   echo -e "${GREEN}=============================================${NC}"
@@ -242,6 +290,9 @@ show_information() {
   echo
   echo "The installation directory is: /opt/iotpilot"
   echo
+  echo "mDNS has been configured, so any device on your local network"
+  echo "should be able to access your server using iotpilot.local"
+  echo
   echo "Useful commands (run from /opt/iotpilot directory):"
   echo "  - make stop    : Stop all services"
   echo "  - make start   : Start all services"
@@ -256,6 +307,9 @@ show_information() {
     echo "        For now, Docker commands have been set up to work in this session."
     echo
   fi
+
+  echo "TIP: For clients that don't support mDNS natively (older Windows versions),"
+  echo "     you may need to install additional software like Bonjour Print Services."
 }
 
 # Main installation process
@@ -273,6 +327,7 @@ main() {
   # Non-interactive mode: proceed without confirmation
   info "Starting installation process..."
   install_dependencies
+  setup_mdns  # Added the mDNS setup step
   clone_repository
   setup_environment
   run_installation
