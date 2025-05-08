@@ -3,17 +3,6 @@ FROM arm32v7/node:18-slim
 # Set working directory
 WORKDIR /app
 
-# Install Python and build tools for native modules
-RUN apt-get update && apt-get install -y \
-    python3 \
-    python-is-python3 \
-    make \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create .npmrc to specify Python path
-RUN echo "python=/usr/bin/python3" > ~/.npmrc
-
 # Install nodemon globally
 RUN npm install -g nodemon
 
@@ -21,4 +10,4 @@ RUN npm install -g nodemon
 EXPOSE 4000
 
 # Set up entry commands with explicit Python path for native module compilation
-CMD ["sh", "-c", "mkdir -p /app/data && chmod 777 /app/data && PYTHON=/usr/bin/python3 npm install --python=/usr/bin/python3 && npm run dev"]
+CMD ["sh", "-c", "mkdir -p /app/data && chmod 777 /app/data && npm run dev"]
