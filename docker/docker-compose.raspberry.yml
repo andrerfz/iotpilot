@@ -19,7 +19,7 @@ services:
       - PYTHON=/usr/bin/python3  # Set Python path as environment variable
     restart: unless-stopped
     # Make sure to install dependencies with Python 3 and then run the server
-    command: sh -c "mkdir -p /app/data && chmod 777 /app/data && npm install --python=/usr/bin/python3 && npm run dev"
+    command: sh -c "mkdir -p /app/data && chmod 777 /app/data && PYTHON=/usr/bin/python3 npm install --python=/usr/bin/python3 && npm run dev"
     networks:
       - iotpilot_network
     labels:
@@ -36,9 +36,16 @@ services:
       - "traefik.http.routers.iotpilot-tailscale.tls=true"
       # Common configuration
       - "traefik.http.services.iotpilot.loadbalancer.server.port=4000"
+      # Health check to prevent Bad Gateway
+      - "traefik.http.services.iotpilot.loadbalancer.healthcheck.path=/"
+      - "traefik.http.services.iotpilot.loadbalancer.healthcheck.interval=10s"
+      - "traefik.http.services.iotpilot.loadbalancer.healthcheck.timeout=5s"
+      - "traefik.http.services.iotpilot.loadbalancer.healthcheck.retries=3"
 
   traefik:
-    image: traefik:v2.10
+    build:
+      context: ..
+      dockerfile: docker/traefik/Dockerfile.raspberry
     container_name: iotpilot-traefik
     ports:
       - "4080:80"      # Map HTTP port
@@ -59,7 +66,9 @@ services:
       - HOST_NAME=${HOST_NAME:-iotpilot.local}
 
   tailscale:
-    image: tailscale/tailscale:latest
+    build:
+      context: ..
+      dockerfile: docker/tailscale/Dockerfile.raspberry
     container_name: iotpilot-tailscale
     volumes:
       - tailscale_state:/var/lib/tailscale

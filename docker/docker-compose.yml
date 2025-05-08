@@ -7,7 +7,7 @@ services:
       dockerfile: docker/node/Dockerfile
     container_name: iotpilot-app
     ports:
-      - "4000"  # Para acceso directo al servidor Node.js
+      - "4000"  # For direct access to Node.js server
     volumes:
       - ../app:/app  # This maps your local app directory to the container
       - iotpilot_data:/app/data  # Persistent volume for database
@@ -16,6 +16,7 @@ services:
       - NODE_ENV=production
       - CHOKIDAR_USEPOLLING=true
       - HOST_NAME=${HOST_NAME:-iotpilot.local}  # Make hostname available to the app
+      - PYTHON=/usr/bin/python3  # Set Python path explicitly
     restart: unless-stopped
     command: bash -c "npm install && npm run dev"
     networks:
@@ -28,15 +29,22 @@ services:
       - "traefik.http.routers.iotpilot-https.rule=Host(`${HOST_NAME:-iotpilot.local}`)"
       - "traefik.http.routers.iotpilot-https.entrypoints=websecure"
       - "traefik.http.routers.iotpilot-https.tls=true"
-      # Tailscale domain router - Ahora usando la variable definida
+      # Tailscale domain router
       - "traefik.http.routers.iotpilot-tailscale.rule=Host(`${TAILSCALE_DOMAIN}`)"
       - "traefik.http.routers.iotpilot-tailscale.entrypoints=websecure"
       - "traefik.http.routers.iotpilot-tailscale.tls=true"
       # Common configuration
       - "traefik.http.services.iotpilot.loadbalancer.server.port=4000"
+      # Health check to prevent Bad Gateway
+      - "traefik.http.services.iotpilot.loadbalancer.healthcheck.path=/"
+      - "traefik.http.services.iotpilot.loadbalancer.healthcheck.interval=10s"
+      - "traefik.http.services.iotpilot.loadbalancer.healthcheck.timeout=5s"
+      - "traefik.http.services.iotpilot.loadbalancer.healthcheck.retries=3"
 
   traefik:
-    image: traefik:v2.10
+    build:
+      context: ..
+      dockerfile: docker/traefik/Dockerfile
     container_name: iotpilot-traefik
     ports:
       - "4080:80"      # Map HTTP port
@@ -54,14 +62,17 @@ services:
       - iotpilot
     environment:
       - ACME_EMAIL=${ACME_EMAIL:-contact@iotpilot.tk}
+      - HOST_NAME=${HOST_NAME:-iotpilot.local}
 
   tailscale:
-    image: tailscale/tailscale:latest
+    build:
+      context: ..
+      dockerfile: docker/tailscale/Dockerfile
     container_name: iotpilot-tailscale
     volumes:
       - tailscale_state:/var/lib/tailscale
       - /dev/net/tun:/dev/net/tun
-    # Esto comparte la red con el contenedor de Traefik para acceder a sus servicios
+    # This shares the network with the Traefik container to access its services
     network_mode: "service:traefik"
     cap_add:
       - NET_ADMIN
@@ -70,7 +81,7 @@ services:
       - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_USERSPACE=false
-      # Parámetros básicos sin anunciar rutas ni exit nodes
+      # Basic parameters without advertising routes or exit nodes
       - TS_EXTRA_ARGS=--hostname=${HOST_NAME:-iotpilot.local} --reset
     restart: unless-stopped
 
