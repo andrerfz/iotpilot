@@ -1,4 +1,4 @@
-FROM arm32v7/node:22.15-bookworm
+FROM arm32v6/node:18.20-alpine3.21
 
 # Set working directory
 WORKDIR /app
