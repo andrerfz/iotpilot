@@ -1,4 +1,4 @@
-name: iotpilot
+version: "3"
 
 services:
   iotpilot:
@@ -17,8 +17,8 @@ services:
       - CHOKIDAR_USEPOLLING=true
       - HOST_NAME=${HOST_NAME:-iotpilot.local}
     restart: unless-stopped
-    # Simplified command - entrypoint script will handle startup
-    command: ["npm", "install", "&&", "npm", "run", "dev"]
+    # Simple command without array notation
+    command: npm run dev
     networks:
       - iotpilot_network
     labels:
