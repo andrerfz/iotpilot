@@ -1,16 +1,21 @@
 # docker/node/Dockerfile.raspberry
-# Specialized Dockerfile for Raspberry Pi Zero (ARMv6)
 FROM arm32v6/node:14-alpine
 
 # Set working directory
 WORKDIR /app
 
+# Install Python and other build dependencies
+RUN apk add --no-cache bash python3 make g++
+
 # Install nodemon globally
 # Use a specific older version of nodemon that's known to work on ARMv6
 RUN npm install -g nodemon@2.0.15
 
+# Create a .npmrc file to use Python 3
+RUN echo "python=/usr/bin/python3" > /root/.npmrc
+
 # Expose port
 EXPOSE 4000
 
-# No separate entrypoint script - run commands directly
-CMD ["sh", "-c", "mkdir -p /app/data && chmod 777 /app/data && npm run dev"]
+# Set up entry commands
+CMD ["sh", "-c", "mkdir -p /app/data && chmod 777 /app/data && python3 --version && npm install --python=/usr/bin/python3 && npm run dev"]

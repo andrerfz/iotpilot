@@ -1,9 +1,14 @@
-#!/bin/sh
-# This is the entrypoint script that will be executed when the container starts
+#!/bin/bash
+set -e
 
-# Create data directory with proper permissions
+# Create data directory if it doesn't exist
 mkdir -p /app/data
-chmod 777 /app/data
 
-# Execute the command passed to docker run
+# Set permissions only if needed (check first to avoid doing it every time)
+if [ ! -w "/app/data" ]; then
+  echo "Setting permissions for data directory..."
+  chmod 777 /app/data
+fi
+
+# Run the command
 exec "$@"

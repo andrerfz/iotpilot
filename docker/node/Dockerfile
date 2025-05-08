@@ -1,20 +1,20 @@
-# docker/node/Dockerfile.raspberry
-FROM arm32v6/node:14-alpine
+# docker/node/Dockerfile
+FROM node:18-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install bash and nodemon
-RUN apk add --no-cache bash && npm install -g nodemon@2.0.15
+# Install nodemon globally
+RUN npm install -g nodemon
 
-# Create entrypoint script
+# Copy entrypoint script
 COPY docker/node/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Expose port
 EXPOSE 4000
 
-# Set entrypoint to use bash shell
+# Set the entrypoint script
 ENTRYPOINT ["/entrypoint.sh"]
 
 # Default command
