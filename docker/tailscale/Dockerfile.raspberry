@@ -1,30 +1,14 @@
-FROM arm32v7/debian:bullseye-slim
+tailscale/tailscale:v1.25.84
 
-# Install required packages
+# Install additional tools for debugging
 RUN apt-get update && apt-get install -y \
-    ca-certificates \
     curl \
-    gnupg \
-    iproute2 \
-    iptables \
     iputils-ping \
     net-tools \
-    openssh-client \
-    procps \
     && rm -rf /var/lib/apt/lists/*
 
-# Set up Tailscale repository and install
-RUN curl -fsSL https://pkgs.tailscale.com/stable/debian/bullseye.noarmor.gpg | apt-key add - \
-    && curl -fsSL https://pkgs.tailscale.com/stable/debian/bullseye.tailscale-keyring.list > /etc/apt/sources.list.d/tailscale.list \
-    && apt-get update \
-    && apt-get install -y tailscale \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create required directories
-RUN mkdir -p /var/run/tailscale /var/cache/tailscale /var/lib/tailscale
-
-# Add custom entrypoint script for better resource management
-COPY docker/tailscale/entrypoint-raspberry.sh /entrypoint.sh
+# Add an entrypoint script for better error handling
+COPY docker/tailscale/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Set the entrypoint
