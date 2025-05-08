@@ -1,5 +1,4 @@
 #!/bin/sh
-# docker/traefik/entrypoint-raspberry.sh
 
 set -e
 

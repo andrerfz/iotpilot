@@ -1,5 +1,4 @@
 #!/bin/sh
-# docker/tailscale/entrypoint-raspberry.sh
 
 set -e
 

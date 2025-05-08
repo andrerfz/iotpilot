@@ -1,5 +1,4 @@
 #!/bin/sh
-# docker/traefik/entrypoint.sh
 
 set -e
 
