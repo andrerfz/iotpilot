@@ -1,13 +1,36 @@
-FROM tailscale/tailscale:latest
+# Use a base Alpine image compatible with ARMv6
+FROM arm32v6/alpine:3.17
 
-# Install additional tools for debugging and ensure compatibility with ARM
-RUN apt-get update && apt-get install -y \
+# Install required packages
+RUN apk update && apk add --no-cache \
+    ca-certificates \
+    iptables \
+    ip6tables \
+    iproute2 \
     curl \
-    iputils-ping \
-    net-tools \
-    && rm -rf /var/lib/apt/lists/*
+    tzdata \
+    openresolv \
+    openssh-client \
+    shadow \
+    procps
 
-# Add an entrypoint script with specific ARM compatibility options
+# Download and install Tailscale for ARMv6
+RUN mkdir -p /var/run/tailscale /var/cache/tailscale /var/lib/tailscale
+
+# Install Tailscale (using static binaries for maximum compatibility)
+RUN mkdir -p /tmp/tailscale && \
+    cd /tmp/tailscale && \
+    curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_1.56.1_arm.tgz" | tar xzf - && \
+    cd tailscale_* && \
+    mkdir -p /opt/tailscale/bin && \
+    cp tailscale tailscaled /opt/tailscale/bin && \
+    chmod +x /opt/tailscale/bin/* && \
+    ln -s /opt/tailscale/bin/tailscale /usr/bin/tailscale && \
+    ln -s /opt/tailscale/bin/tailscaled /usr/sbin/tailscaled && \
+    cd ~ && \
+    rm -rf /tmp/tailscale
+
+# Add an entrypoint script with ARMv6 compatibility options
 COPY docker/tailscale/entrypoint-raspberry.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

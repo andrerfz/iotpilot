@@ -70,6 +70,7 @@ services:
       context: ..
       dockerfile: docker/tailscale/Dockerfile.raspberry
     container_name: iotpilot-tailscale
+    privileged: true  # Needed for iptables access
     volumes:
       - tailscale_state:/var/lib/tailscale
       - /dev/net/tun:/dev/net/tun
@@ -78,10 +79,10 @@ services:
     cap_add:
       - NET_ADMIN
       - NET_RAW
+      - SYS_MODULE
     environment:
       - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}
       - TS_STATE_DIR=/var/lib/tailscale
-      - TS_USERSPACE=true  # Use userspace mode for better Raspberry Pi compatibility
       # Basic parameters without advertising routes or exit nodes
       - TS_EXTRA_ARGS=--hostname=${HOST_NAME:-iotpilot.local} --reset
     restart: unless-stopped
