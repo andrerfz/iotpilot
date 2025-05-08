@@ -11,14 +11,13 @@ services:
     volumes:
       - ../app:/app  # Map local app directory to container
       - iotpilot_data:/app/data  # Persistent volume for database
-      - /app/node_modules  # Anonymous volume for node_modules
     environment:
       - NODE_ENV=production
       - CHOKIDAR_USEPOLLING=true
       - HOST_NAME=${HOST_NAME:-iotpilot.local}
     restart: unless-stopped
-    # Simple command without array notation
-    command: npm run dev
+    # Make sure to install dependencies and then run the server
+    command: sh -c "cd /app && npm install && npm run dev"
     networks:
       - iotpilot_network
     labels:
@@ -70,7 +69,7 @@ services:
     environment:
       - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}
       - TS_STATE_DIR=/var/lib/tailscale
-      - TS_USERSPACE=false
+      - TS_USERSPACE=true  # Try userspace mode to avoid TUN device issues
       # Basic parameters without advertising routes or exit nodes
       - TS_EXTRA_ARGS=--hostname=${HOST_NAME:-iotpilot.local} --reset
     restart: unless-stopped
