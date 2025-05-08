@@ -1,5 +1,4 @@
-# docker/traefik/Dockerfile.raspberry
-FROM traefik:v2.10
+FROM arm32v6/traefik:3.3
 
 # Traefik is using Alpine Linux, so we need to use apk instead of apt-get
 RUN apk update && apk add --no-cache \
