@@ -18,8 +18,7 @@ services:
       - HOST_NAME=${HOST_NAME:-iotpilot.local}
       - PYTHON=/usr/bin/python3  # Set Python path as environment variable
     restart: unless-stopped
-    # Make sure to install dependencies with Python 3 and then run the server
-    command: sh -c "mkdir -p /app/data && chmod 777 /app/data && PYTHON=/usr/bin/python3 npm install --python=/usr/bin/python3 && npm run dev"
+    # Using the command from the Dockerfile
     networks:
       - iotpilot_network
     labels:

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e
 
@@ -9,23 +9,21 @@ if [ ! -e /dev/net/tun ]; then
     exit 1
 fi
 
-# Create /tmp/tailscaled.sock directory in case it doesn't exist
+# Create directory if it doesn't exist
 mkdir -p /var/run/tailscale
 chmod 1777 /var/run/tailscale
 
-# Set up low memory optimizations for ARMv6
-echo "Starting Tailscale daemon optimized for ARMv6..."
+echo "Starting Tailscale daemon (optimized for Raspberry Pi)..."
 
-# Always use userspace mode for ARMv6 devices
-echo "Running in USERSPACE mode (optimized for ARMv6)"
+# Use userspace networking for better compatibility
+echo "Running in USERSPACE mode"
 TAILSCALED_ARGS="--tun=userspace-networking"
 
-# Reduce memory usage for low-powered devices
+# Add optimizations for Raspberry Pi
 export TS_LOGS_DIR=/dev/null
 export TS_LOG_TARGET=syslog
-export TS_USERSPACE_ROUTER=true
 
-# Start tailscaled with minimal memory consumption
+# Start tailscaled
 tailscaled \
   --state=$TS_STATE_DIR \
   --socket=/var/run/tailscale/tailscaled.sock \
@@ -34,8 +32,8 @@ tailscaled \
   $TAILSCALED_ARGS &
 TAILSCALED_PID=$!
 
-# Give tailscaled extra time to start on the resource-constrained device
-sleep 8
+# Give tailscaled some time to start
+sleep 5
 
 # Try to log in with the auth key if provided
 if [ -n "$TS_AUTHKEY" ]; then

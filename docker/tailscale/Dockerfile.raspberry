@@ -1,36 +1,29 @@
-# Use a base Alpine image compatible with ARMv6
-FROM arm32v6/alpine:3.17
+FROM arm32v7/debian:bullseye-slim
 
 # Install required packages
-RUN apk update && apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     ca-certificates \
-    iptables \
-    ip6tables \
-    iproute2 \
     curl \
-    tzdata \
-    openresolv \
+    gnupg \
+    iproute2 \
+    iptables \
+    iputils-ping \
+    net-tools \
     openssh-client \
-    shadow \
-    procps
+    procps \
+    && rm -rf /var/lib/apt/lists/*
 
-# Download and install Tailscale for ARMv6
+# Set up Tailscale repository and install
+RUN curl -fsSL https://pkgs.tailscale.com/stable/debian/bullseye.noarmor.gpg | apt-key add - \
+    && curl -fsSL https://pkgs.tailscale.com/stable/debian/bullseye.tailscale-keyring.list > /etc/apt/sources.list.d/tailscale.list \
+    && apt-get update \
+    && apt-get install -y tailscale \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create required directories
 RUN mkdir -p /var/run/tailscale /var/cache/tailscale /var/lib/tailscale
 
-# Install Tailscale (using static binaries for maximum compatibility)
-RUN mkdir -p /tmp/tailscale && \
-    cd /tmp/tailscale && \
-    curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_1.56.1_arm.tgz" | tar xzf - && \
-    cd tailscale_* && \
-    mkdir -p /opt/tailscale/bin && \
-    cp tailscale tailscaled /opt/tailscale/bin && \
-    chmod +x /opt/tailscale/bin/* && \
-    ln -s /opt/tailscale/bin/tailscale /usr/bin/tailscale && \
-    ln -s /opt/tailscale/bin/tailscaled /usr/sbin/tailscaled && \
-    cd ~ && \
-    rm -rf /tmp/tailscale
-
-# Add an entrypoint script with ARMv6 compatibility options
+# Add custom entrypoint script for better resource management
 COPY docker/tailscale/entrypoint-raspberry.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
