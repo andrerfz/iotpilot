@@ -1,15 +1,18 @@
-FROM arm32v6/alpine:3.18
+FROM arm32v6/debian:bullseye-slim
 
-# Install dependencies first
-RUN apk add --no-cache curl iptables ip6tables iproute2 procps wget ca-certificates
+# Install dependencies
+RUN apt-get update && \
+    apt-get install -y curl gnupg apt-transport-https ca-certificates iputils-ping net-tools iptables procps && \
+    curl -fsSL https://pkgs.tailscale.com/stable/raspbian/bullseye.gpg | gpg --dearmor > /usr/share/keyrings/tailscale-archive-keyring.gpg && \
+    curl -fsSL https://pkgs.tailscale.com/stable/raspbian/bullseye.list | tee /etc/apt/sources.list.d/tailscale.list && \
+    apt-get update && \
+    apt-get install -y tailscale && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install tailscale using the armhf version
-RUN mkdir -p /var/run/tailscale /var/cache/tailscale /var/lib/tailscale && \
-    wget -O tailscale.tgz https://pkgs.tailscale.com/stable/tailscale-ipn-armhf.tgz && \
-    tar xzf tailscale.tgz --strip-components=1 -C /usr/sbin tailscale_*/tailscaled tailscale_*/tailscale && \
-    rm -f tailscale.tgz
+# Create necessary directories
+RUN mkdir -p /var/run/tailscale /var/cache/tailscale /var/lib/tailscale
 
-# Add entrypoint script
+# Add entrypoint script for Raspberry Pi optimizations
 COPY docker/tailscale/entrypoint-raspberry.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
