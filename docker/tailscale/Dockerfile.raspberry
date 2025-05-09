@@ -1,15 +1,16 @@
-FROM arm32v6/debian:bookworm-slim
+FROM arm32v6/alpine:3.18
 
-# Install dependencies and Tailscale
-RUN apt-get update && \
-    apt-get install -y curl gnupg iptables iputils-ping net-tools procps && \
-    curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg | tee /usr/share/keyrings/tailscale-archive-keyring.gpg >/dev/null && \
-    curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list | tee /etc/apt/sources.list.d/tailscale.list && \
-    apt-get update && \
-    apt-get install -y tailscale && \
-    rm -rf /var/lib/apt/lists/*
+# Install dependencies first
+RUN apk add --no-cache curl iptables ip6tables iproute2 procps
 
-# Add entrypoint script for Raspberry Pi optimizations
+# Install tailscale using their Alpine script
+RUN apk add --no-cache ca-certificates && \
+    wget -O tailscale.tgz https://pkgs.tailscale.com/stable/tailscale-ipn-aarch64.tgz && \
+    tar xzf tailscale.tgz --strip-components=1 -C /usr/sbin tailscale_*/tailscaled tailscale_*/tailscale && \
+    rm -f tailscale.tgz && \
+    mkdir -p /var/run/tailscale /var/cache/tailscale /var/lib/tailscale
+
+# Add entrypoint script
 COPY docker/tailscale/entrypoint-raspberry.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
