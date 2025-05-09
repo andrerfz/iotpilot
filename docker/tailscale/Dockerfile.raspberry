@@ -1,4 +1,4 @@
-FROM tailscale/tailscale:v1.25.84
+FROM tailscale/tailscale:v1.25.84-arm
 
 # Install additional tools for debugging
 RUN apt-get update && apt-get install -y \
