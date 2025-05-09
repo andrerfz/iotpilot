@@ -1,14 +1,13 @@
 FROM arm32v6/alpine:3.18
 
 # Install dependencies first
-RUN apk add --no-cache curl iptables ip6tables iproute2 procps
+RUN apk add --no-cache curl iptables ip6tables iproute2 procps wget ca-certificates
 
-# Install tailscale using their Alpine script
-RUN apk add --no-cache ca-certificates && \
-    wget -O tailscale.tgz https://pkgs.tailscale.com/stable/tailscale-ipn-aarch64.tgz && \
+# Install tailscale using the armhf version
+RUN mkdir -p /var/run/tailscale /var/cache/tailscale /var/lib/tailscale && \
+    wget -O tailscale.tgz https://pkgs.tailscale.com/stable/tailscale-ipn-armhf.tgz && \
     tar xzf tailscale.tgz --strip-components=1 -C /usr/sbin tailscale_*/tailscaled tailscale_*/tailscale && \
-    rm -f tailscale.tgz && \
-    mkdir -p /var/run/tailscale /var/cache/tailscale /var/lib/tailscale
+    rm -f tailscale.tgz
 
 # Add entrypoint script
 COPY docker/tailscale/entrypoint-raspberry.sh /entrypoint.sh
