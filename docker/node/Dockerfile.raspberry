@@ -6,8 +6,14 @@ WORKDIR /app
 # Install nodemon globally
 RUN npm install -g nodemon
 
+# Copy package files first for better caching
+COPY app/package*.json ./
+
+# Install dependencies
+RUN npm install
+
 # Expose port
 EXPOSE 4000
 
-# Set up entry commands with explicit Python path for native module compilation
+# Set up entry command
 CMD ["sh", "-c", "mkdir -p /app/data && chmod 777 /app/data && npm run dev"]

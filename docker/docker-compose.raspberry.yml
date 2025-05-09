@@ -11,14 +11,13 @@ services:
     volumes:
       - ../app:/app  # Map local app directory to container
       - iotpilot_data:/app/data  # Persistent volume for database
-      - /app/node_modules  # Anonymous volume for node_modules to prevent overwriting
+      - /app/node_modules  # Anonymous volume for node_modules
     environment:
       - NODE_ENV=production
       - CHOKIDAR_USEPOLLING=true
       - HOST_NAME=${HOST_NAME:-iotpilot.local}
       - PYTHON=/usr/bin/python3  # Set Python path as environment variable
     restart: unless-stopped
-    # Using the command from the Dockerfile
     networks:
       - iotpilot_network
     labels:
