@@ -1,14 +1,16 @@
-FROM tailscale/tailscale:v1.25.84-arm
+FROM arm32v6/debian:bookworm-slim
 
-# Install additional tools for debugging
-RUN apt-get update && apt-get install -y \
-    curl \
-    iputils-ping \
-    net-tools \
-    && rm -rf /var/lib/apt/lists/*
+# Install dependencies and Tailscale
+RUN apt-get update && \
+    apt-get install -y curl gnupg iptables iputils-ping net-tools procps && \
+    curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg | tee /usr/share/keyrings/tailscale-archive-keyring.gpg >/dev/null && \
+    curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list | tee /etc/apt/sources.list.d/tailscale.list && \
+    apt-get update && \
+    apt-get install -y tailscale && \
+    rm -rf /var/lib/apt/lists/*
 
-# Add an entrypoint script for better error handling
-COPY docker/tailscale/entrypoint.sh /entrypoint.sh
+# Add entrypoint script for Raspberry Pi optimizations
+COPY docker/tailscale/entrypoint-raspberry.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Set the entrypoint
