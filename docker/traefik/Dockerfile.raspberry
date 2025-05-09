@@ -17,4 +17,4 @@ RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
 
 # Default command with lower resource settings for Raspberry Pi
-CMD ["traefik", "--accesslog.bufferingsize=100", "--pilot.dashboard=false"]
+CMD ["traefik", "--accesslog.bufferingsize=100"]
