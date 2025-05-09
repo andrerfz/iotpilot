@@ -3,9 +3,10 @@ FROM arm32v6/node:18-alpine
 # Set working directory
 WORKDIR /app
 
-# Install minimal dependencies for sqlite3 and Python
+# Install dependencies for SQLCipher and sqlite3
 RUN apk add --no-cache \
     sqlite-dev \
+    libsqlcipher-dev \
     python3 \
     py3-pip \
     make \
@@ -17,8 +18,9 @@ RUN npm install -g nodemon
 # Copy package files for caching
 COPY app/package*.json ./
 
-# Install dependencies with prebuilt sqlite3 binaries
-RUN npm install --prefer-prebuilt sqlite3
+# Install sqlite3 with SQLCipher support
+RUN npm install sqlite3@5.1.6 --prefer-prebuilt --sqlite_libname=sqlcipher || \
+    npm install sqlite3@5.1.6 --build-from-source --sqlite_libname=sqlcipher
 
 # Expose port
 EXPOSE 4000
