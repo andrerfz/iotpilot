@@ -1,18 +1,18 @@
-FROM arm32v7/node:18-slim
+FROM arm32v6/node:18-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Install build dependencies for SQLite
-RUN apt-get update && apt-get install -y \
+# Install build dependencies including Python and setuptools for distutils
+RUN apk add --no-cache \
     python3 \
-    python3-pip \
-    python3-setuptools \
+    py3-pip \
+    py3-setuptools \
     make \
     g++ \
-    sqlite3 \
-    libsqlite3-dev \
-    && rm -rf /var/lib/apt/lists/*
+    gcc \
+    sqlite-dev \
+    python3-dev
 
 # Install nodemon globally
 RUN npm install -g nodemon
@@ -20,8 +20,10 @@ RUN npm install -g nodemon
 # Copy package files first for better caching
 COPY app/package*.json ./
 
-# Install dependencies
-RUN npm install
+# Attempt to use prebuild-install for sqlite3 to avoid compilation
+RUN npm install --build-from-source=sqlite3 --python=/usr/bin/python3 || \
+    (echo "Failed to build sqlite3, trying again with verbose logging" && \
+     npm install --build-from-source=sqlite3 --python=/usr/bin/python3 --verbose)
 
 # Expose port
 EXPOSE 4000
