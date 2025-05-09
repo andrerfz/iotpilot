@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const { Model } = require('sequelize');
+const { DataTypes } = require('sequelize');
 
 // Better SQLite3 Adapter for Sequelize
 class BetterSQLiteAdapter {
@@ -73,48 +73,19 @@ const dbPath = path.join(dataDir, 'iotpilot.sqlite');
 let dbAdapter = new BetterSQLiteAdapter();
 let inMemoryMode = false;
 
-// Simple Device Model implementation
-class Device extends Model {
-    static init(sequelize) {
-        super.init({
-            id: {
-                type: sequelize.INTEGER,
-                primaryKey: true,
-                autoIncrement: true,
-            },
-            name: {
-                type: sequelize.STRING,
-                allowNull: false,
-                unique: true,
-            },
-            type: {
-                type: sequelize.STRING,
-                allowNull: false,
-                defaultValue: 'scale',
-            },
-            host: {
-                type: sequelize.STRING,
-                allowNull: false,
-            },
-            port: {
-                type: sequelize.INTEGER,
-                allowNull: false,
-            },
-            description: {
-                type: sequelize.TEXT,
-                allowNull: true,
-            },
-            active: {
-                type: sequelize.BOOLEAN,
-                defaultValue: true,
-            }
-        }, {
-            sequelize,
-            modelName: 'Device',
-        });
-        return this;
+// Create a mock Sequelize instance and define function
+// This avoids actually initializing Sequelize with a dialect
+const sequelize = {
+    define: (modelName, attributes, options) => {
+        // We're only using this to parse the model definition
+        console.log(`Mock Sequelize: Defined model ${modelName}`);
+        return {};
     }
-}
+};
+
+// Use the device model definition just to document the schema,
+// but we'll use our own implementations for database operations
+const deviceModel = require('./models/device')(sequelize);
 
 // Track whether we've already created a default device in this session
 let defaultDeviceCreated = false;
@@ -140,15 +111,15 @@ const initDatabase = async () => {
         // Create tables if they don't exist
         dbAdapter.execute(`
             CREATE TABLE IF NOT EXISTS Devices (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                type TEXT NOT NULL DEFAULT 'scale',
-                host TEXT NOT NULL,
-                port INTEGER NOT NULL,
-                description TEXT,
-                active INTEGER DEFAULT 1,
-                createdAt TEXT,
-                updatedAt TEXT
+                                                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                                   name TEXT NOT NULL UNIQUE,
+                                                   type TEXT NOT NULL DEFAULT 'scale',
+                                                   host TEXT NOT NULL,
+                                                   port INTEGER NOT NULL,
+                                                   description TEXT,
+                                                   active INTEGER DEFAULT 1,
+                                                   createdAt TEXT,
+                                                   updatedAt TEXT
             )
         `);
 
@@ -161,7 +132,7 @@ const initDatabase = async () => {
                 // Add default device
                 const now = new Date().toISOString();
                 dbAdapter.execute(
-                    `INSERT INTO Devices (name, type, host, port, description, active, createdAt, updatedAt) 
+                    `INSERT INTO Devices (name, type, host, port, description, active, createdAt, updatedAt)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                     ['Default Scale', 'scale', '192.168.1.11', 9999,
                         inMemoryMode ? 'Default HF2211 scale device (in-memory, will be lost on restart)' : 'Default HF2211 scale device',
@@ -181,21 +152,7 @@ const initDatabase = async () => {
     }
 };
 
-// Create a minimal Sequelize-like interface for compatibility
-const sequelize = {
-    authenticate: async () => true,
-    sync: async () => true,
-    close: () => dbAdapter.close(),
-    STRING: 'TEXT',
-    INTEGER: 'INTEGER',
-    TEXT: 'TEXT',
-    BOOLEAN: 'INTEGER'
-};
-
-// Initialize the Device model with our sequelize-like interface
-const DeviceModel = Device.init(sequelize);
-
-// Export the database components
+// Export the database components with our custom implementation
 module.exports = {
     sequelize,
     Device: {
@@ -218,8 +175,8 @@ module.exports = {
                     const now = new Date().toISOString();
                     const activeValue = data.active ? 1 : 0;
                     dbAdapter.execute(
-                        `UPDATE Devices 
-                         SET name = ?, type = ?, host = ?, port = ?, description = ?, active = ?, updatedAt = ? 
+                        `UPDATE Devices
+                         SET name = ?, type = ?, host = ?, port = ?, description = ?, active = ?, updatedAt = ?
                          WHERE id = ?`,
                         [data.name, data.type, data.host, data.port, data.description, activeValue, now, id]
                     );
@@ -244,7 +201,7 @@ module.exports = {
             const now = new Date().toISOString();
             const activeValue = data.active ? 1 : 0;
             const result = dbAdapter.execute(
-                `INSERT INTO Devices (name, type, host, port, description, active, createdAt, updatedAt) 
+                `INSERT INTO Devices (name, type, host, port, description, active, createdAt, updatedAt)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                 [data.name, data.type, data.host, data.port, data.description, activeValue, now, now]
             );
@@ -257,4 +214,5 @@ module.exports = {
         }
     },
     initDatabase,
+    DataTypes // Export DataTypes for use in model definitions
 };

@@ -196,7 +196,6 @@
             <label for="api-version">API Version:</label>
             <select id="api-version" onchange="updateApiVersion()">
                 <option value="ip-based">IP-based API (Recommended)</option>
-                <option value="legacy">Legacy API</option>
             </select>
         </div>
     </div>
@@ -352,13 +351,7 @@
             showLoading('loading');
 
             let url;
-            if (useIpBasedApi && currentDevice) {
-                // Use IP-based API (new approach)
-                url = `/api/devices/${currentDevice.host}/${command}`;
-            } else {
-                // Use legacy API with deviceId as query parameter
-                url = `/${command}?deviceId=${deviceId}`;
-            }
+            url = `/api/devices/${currentDevice.host}/${command}`;
 
             const response = await fetch(url);
             const data = await response.json();
@@ -384,13 +377,7 @@
             showLoading('loading');
 
             let url;
-            if (useIpBasedApi && currentDevice) {
-                // Use IP-based API (new approach)
-                url = `/api/devices/${currentDevice.host}/presetTare?value=${value}`;
-            } else {
-                // Use legacy API with deviceId as query parameter
-                url = `/presetTare?value=${value}&deviceId=${deviceId}`;
-            }
+            url = `/api/devices/${currentDevice.host}/presetTare?value=${value}`;
 
             const response = await fetch(url);
             const data = await response.json();
