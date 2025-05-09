@@ -18,8 +18,7 @@ RUN npm install -g nodemon
 COPY app/package*.json ./
 
 # Install dependencies with prebuilt sqlite3 binaries
-RUN npm install --prefer-prebuilt sqlite3 || \
-    npm install --build-from-source=sqlite3 --python=/usr/bin/python3
+RUN npm install --prefer-prebuilt sqlite3
 
 # Expose port
 EXPOSE 4000
