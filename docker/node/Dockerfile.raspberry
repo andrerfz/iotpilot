@@ -3,30 +3,29 @@ FROM arm32v6/node:18-alpine
 # Set working directory
 WORKDIR /app
 
-# Install build dependencies including Python and setuptools for distutils
+# Install minimal dependencies for sqlite3 and Python
 RUN apk add --no-cache \
+    sqlite-dev \
     python3 \
     py3-pip \
-    py3-setuptools \
     make \
-    g++ \
-    gcc \
-    sqlite-dev \
-    python3-dev
+    g++
 
 # Install nodemon globally
 RUN npm install -g nodemon
 
-# Copy package files first for better caching
-COPY app/package*.json ./
+# Copy package files for caching
+COPY package*.json ./
 
-# Attempt to use prebuild-install for sqlite3 to avoid compilation
-RUN npm install --build-from-source=sqlite3 --python=/usr/bin/python3 || \
-    (echo "Failed to build sqlite3, trying again with verbose logging" && \
-     npm install --build-from-source=sqlite3 --python=/usr/bin/python3 --verbose)
+# Install dependencies with prebuilt sqlite3 binaries
+RUN npm install --prefer-prebuilt sqlite3 || \
+    npm install --build-from-source=sqlite3 --python=/usr/bin/python3
+
+# Copy application code
+COPY . .
 
 # Expose port
 EXPOSE 4000
 
-# Set up entry command
+# Create data directory and set permissions
 CMD ["sh", "-c", "mkdir -p /app/data && chmod 777 /app/data && npm run dev"]

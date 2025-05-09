@@ -1,4 +1,3 @@
-# docker/node/Dockerfile
 FROM node:18-slim
 
 # Set working directory
