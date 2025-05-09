@@ -1,99 +1,260 @@
-// app/db/index.js
-const { Sequelize } = require('sequelize');
 const path = require('path');
 const fs = require('fs');
+const { Model } = require('sequelize');
+
+// Better SQLite3 Adapter for Sequelize
+class BetterSQLiteAdapter {
+    constructor() {
+        // Dynamically load better-sqlite3 to avoid dependency issues
+        try {
+            this.sqlite = require('better-sqlite3');
+        } catch (error) {
+            console.error('Failed to load better-sqlite3, falling back to in-memory mode:', error.message);
+            this.sqlite = null;
+        }
+
+        this.db = null;
+        this.connected = false;
+    }
+
+    connect(dbPath) {
+        try {
+            if (!this.sqlite) {
+                throw new Error('better-sqlite3 not available');
+            }
+
+            this.db = new this.sqlite(dbPath, {
+                verbose: process.env.NODE_ENV === 'development' ? console.log : null,
+                fileMustExist: false
+            });
+
+            // Test the connection
+            this.db.prepare('SELECT 1').get();
+            this.connected = true;
+            return true;
+        } catch (error) {
+            console.error('Database connection error:', error.message);
+            this.connected = false;
+            return false;
+        }
+    }
+
+    close() {
+        if (this.db) {
+            this.db.close();
+            this.db = null;
+            this.connected = false;
+        }
+    }
+
+    execute(sql, params = []) {
+        try {
+            if (!this.db) {
+                throw new Error('Database not connected');
+            }
+
+            if (sql.trim().toUpperCase().startsWith('SELECT')) {
+                const stmt = this.db.prepare(sql);
+                return stmt.all(...params);
+            } else {
+                const stmt = this.db.prepare(sql);
+                return stmt.run(...params);
+            }
+        } catch (error) {
+            console.error('SQL execution error:', error.message);
+            throw error;
+        }
+    }
+}
 
 // Create the database file in the app directory for persistence
 const dataDir = path.join(__dirname, '..', 'data');
 const dbPath = path.join(dataDir, 'iotpilot.sqlite');
+let dbAdapter = new BetterSQLiteAdapter();
+let inMemoryMode = false;
 
-// Initialize Sequelize with SQLite
-const sequelize = new Sequelize({
-    dialect: 'sqlite',
-    storage: dbPath,
-    logging: console.log,
-    retry: {
-        max: 3
+// Simple Device Model implementation
+class Device extends Model {
+    static init(sequelize) {
+        super.init({
+            id: {
+                type: sequelize.INTEGER,
+                primaryKey: true,
+                autoIncrement: true,
+            },
+            name: {
+                type: sequelize.STRING,
+                allowNull: false,
+                unique: true,
+            },
+            type: {
+                type: sequelize.STRING,
+                allowNull: false,
+                defaultValue: 'scale',
+            },
+            host: {
+                type: sequelize.STRING,
+                allowNull: false,
+            },
+            port: {
+                type: sequelize.INTEGER,
+                allowNull: false,
+            },
+            description: {
+                type: sequelize.TEXT,
+                allowNull: true,
+            },
+            active: {
+                type: sequelize.BOOLEAN,
+                defaultValue: true,
+            }
+        }, {
+            sequelize,
+            modelName: 'Device',
+        });
+        return this;
     }
-});
-
-// Import models
-const Device = require('./models/device')(sequelize);
+}
 
 // Track whether we've already created a default device in this session
 let defaultDeviceCreated = false;
 
-// Sync the database
+// Initialize the database
 const initDatabase = async () => {
     try {
-        // Try to authenticate first
-        await sequelize.authenticate();
-        console.log('Database connection established successfully');
+        // Create data directory if it doesn't exist
+        if (!fs.existsSync(dataDir)) {
+            fs.mkdirSync(dataDir, { recursive: true });
+        }
 
-        // Use alter: false to avoid recreation issues
-        await sequelize.sync({ alter: false });
-        console.log('Database synchronized successfully');
+        // Try to connect to the SQLite database
+        const connected = dbAdapter.connect(dbPath);
+
+        if (!connected) {
+            console.warn('Using in-memory database mode');
+            inMemoryMode = true;
+            // Set up in-memory tables
+            dbAdapter.connect(':memory:');
+        }
+
+        // Create tables if they don't exist
+        dbAdapter.execute(`
+            CREATE TABLE IF NOT EXISTS Devices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                type TEXT NOT NULL DEFAULT 'scale',
+                host TEXT NOT NULL,
+                port INTEGER NOT NULL,
+                description TEXT,
+                active INTEGER DEFAULT 1,
+                createdAt TEXT,
+                updatedAt TEXT
+            )
+        `);
+
+        console.log('Database initialized successfully');
 
         // Check if we have any devices, if not add a default one
-        // Only do this once per application run to avoid duplicates
         if (!defaultDeviceCreated) {
-            const count = await Device.count();
-            if (count === 0) {
-                await Device.create({
-                    name: 'Default Scale',
-                    type: 'scale',
-                    host: '192.168.1.11',
-                    port: 9999,
-                    description: 'Default HF2211 scale device'
-                });
+            const devices = dbAdapter.execute('SELECT COUNT(*) as count FROM Devices');
+            if (devices[0].count === 0) {
+                // Add default device
+                const now = new Date().toISOString();
+                dbAdapter.execute(
+                    `INSERT INTO Devices (name, type, host, port, description, active, createdAt, updatedAt) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    ['Default Scale', 'scale', '192.168.1.11', 9999,
+                        inMemoryMode ? 'Default HF2211 scale device (in-memory, will be lost on restart)' : 'Default HF2211 scale device',
+                        1, now, now]
+                );
                 console.log('Default device created');
                 defaultDeviceCreated = true;
             } else {
-                console.log(`Found ${count} existing devices, skipping default device creation`);
+                console.log(`Found ${devices[0].count} existing devices, skipping default device creation`);
             }
         }
+
+        return true;
     } catch (error) {
-        console.error('Error syncing database:', error);
-
-        // If we can't use the file-based database, fall back to in-memory
-        if (error.name === 'SequelizeDatabaseError' &&
-            (error.parent?.code === 'SQLITE_READONLY' || error.original?.code === 'SQLITE_READONLY')) {
-            console.warn('Warning: Using temporary in-memory database');
-
-            // Create a new in-memory connection
-            const memSequelize = new Sequelize('sqlite::memory:', {
-                logging: console.log
-            });
-
-            // Replace the main sequelize instance for the session
-            sequelize.close();
-            Object.assign(sequelize, memSequelize);
-
-            // Re-import model with new connection
-            const MemDevice = require('./models/device')(sequelize);
-            Object.assign(Device, MemDevice);
-
-            // Sync the in-memory database
-            await sequelize.sync({ force: true });
-
-            // Only create the default device if we haven't already done so
-            if (!defaultDeviceCreated) {
-                await Device.create({
-                    name: 'Default Scale (Temporary)',
-                    type: 'scale',
-                    host: '192.168.1.11',
-                    port: 9999,
-                    description: 'Default HF2211 scale device (in-memory, will be lost on restart)'
-                });
-                defaultDeviceCreated = true;
-                console.log('Created default device in in-memory database');
-            }
-        }
+        console.error('Error initializing database:', error);
+        return false;
     }
 };
 
+// Create a minimal Sequelize-like interface for compatibility
+const sequelize = {
+    authenticate: async () => true,
+    sync: async () => true,
+    close: () => dbAdapter.close(),
+    STRING: 'TEXT',
+    INTEGER: 'INTEGER',
+    TEXT: 'TEXT',
+    BOOLEAN: 'INTEGER'
+};
+
+// Initialize the Device model with our sequelize-like interface
+const DeviceModel = Device.init(sequelize);
+
+// Export the database components
 module.exports = {
     sequelize,
-    Device,
+    Device: {
+        findAll: async () => {
+            const devices = dbAdapter.execute('SELECT * FROM Devices');
+            // Convert active field from INTEGER to BOOLEAN
+            return devices.map(d => ({
+                ...d,
+                active: d.active === 1
+            }));
+        },
+        findByPk: async (id) => {
+            const devices = dbAdapter.execute('SELECT * FROM Devices WHERE id = ?', [id]);
+            if (devices.length === 0) return null;
+            // Convert active field from INTEGER to BOOLEAN
+            return {
+                ...devices[0],
+                active: devices[0].active === 1,
+                update: async (data) => {
+                    const now = new Date().toISOString();
+                    const activeValue = data.active ? 1 : 0;
+                    dbAdapter.execute(
+                        `UPDATE Devices 
+                         SET name = ?, type = ?, host = ?, port = ?, description = ?, active = ?, updatedAt = ? 
+                         WHERE id = ?`,
+                        [data.name, data.type, data.host, data.port, data.description, activeValue, now, id]
+                    );
+                    return {
+                        ...data,
+                        id,
+                        createdAt: devices[0].createdAt,
+                        updatedAt: now
+                    };
+                },
+                destroy: async () => {
+                    dbAdapter.execute('DELETE FROM Devices WHERE id = ?', [id]);
+                    return true;
+                }
+            };
+        },
+        count: async () => {
+            const result = dbAdapter.execute('SELECT COUNT(*) as count FROM Devices');
+            return result[0].count;
+        },
+        create: async (data) => {
+            const now = new Date().toISOString();
+            const activeValue = data.active ? 1 : 0;
+            const result = dbAdapter.execute(
+                `INSERT INTO Devices (name, type, host, port, description, active, createdAt, updatedAt) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [data.name, data.type, data.host, data.port, data.description, activeValue, now, now]
+            );
+            return {
+                ...data,
+                id: result.lastInsertRowid,
+                createdAt: now,
+                updatedAt: now
+            };
+        }
+    },
     initDatabase,
 };

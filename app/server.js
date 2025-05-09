@@ -49,8 +49,38 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 }));
 
 // Initialize database
-initDatabase().then((r) => {
+initDatabase().then((success) => {
+    if (success) {
+        console.log('Database initialized successfully');
+    } else {
+        console.warn('Database initialization had issues, but server will continue with limited functionality');
+    }
+}).catch((error) => {
+    console.error('Fatal database error:', error);
+    // Continue execution but with warnings
+});
 
+// Add this error handler to your server.js to handle database errors gracefully
+app.use((err, req, res, next) => {
+    console.error('Error handling request:', err.stack);
+
+    // Check if error is database related
+    if (err.message && (
+        err.message.includes('database') ||
+        err.message.includes('sqlite') ||
+        err.message.includes('SQL')
+    )) {
+        return res.status(500).json({
+            error: 'Database error occurred',
+            message: 'The server encountered a database issue. This may be due to resource constraints on the Raspberry Pi. Try restarting the service.'
+        });
+    }
+
+    // Generic error response
+    res.status(500).json({
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'development' ? err.message : 'An unexpected error occurred'
+    });
 });
 
 // Device API endpoints

@@ -1,29 +1,43 @@
-FROM arm32v6/node:18-alpine
+FROM balenalib/raspberry-pi-debian:bullseye-run
+
+# Set Node.js version
+ENV NODE_VERSION 16.20.2
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    python3 \
+    make \
+    g++ \
+    gcc \
+    build-essential \
+    sqlite3 \
+    libsqlite3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js for ARMv6
+RUN curl -fsSLO --compressed "https://unofficial-builds.nodejs.org/download/release/v$NODE_VERSION/node-v$NODE_VERSION-linux-armv6l.tar.gz" \
+    && tar -xzf "node-v$NODE_VERSION-linux-armv6l.tar.gz" -C /usr/local --strip-components=1 \
+    && rm "node-v$NODE_VERSION-linux-armv6l.tar.gz" \
+    && ln -s /usr/local/bin/node /usr/local/bin/nodejs
+
+# Install better-sqlite3 globally with optimization flags
+RUN npm config set unsafe-perm true \
+    && npm install -g --production --no-optional nodemon better-sqlite3 \
+    && npm config set unsafe-perm false
 
 # Set working directory
 WORKDIR /app
 
-# Install dependencies for SQLCipher and sqlite3
-RUN apk add --no-cache \
-    sqlite-dev \
-    libsqlcipher-dev \
-    python3 \
-    py3-pip \
-    make \
-    g++
+# Copy entrypoint script
+COPY docker/node/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# Install nodemon globally
-RUN npm install -g nodemon
-
-# Copy package files for caching
-COPY app/package*.json ./
-
-# Install sqlite3 with SQLCipher support
-RUN npm install sqlite3@5.1.6 --prefer-prebuilt --sqlite_libname=sqlcipher || \
-    npm install sqlite3@5.1.6 --build-from-source --sqlite_libname=sqlcipher
+# Create data directory with correct permissions
+RUN mkdir -p /app/data && chmod 777 /app/data
 
 # Expose port
 EXPOSE 4000
 
-# Create data directory and set permissions
-CMD ["sh", "-c", "mkdir -p /app/data && chmod 777 /app/data && npm run dev"]
+# Default command with increased memory limit
+CMD ["node", "--max-old-space-size=256", "server.js"]
