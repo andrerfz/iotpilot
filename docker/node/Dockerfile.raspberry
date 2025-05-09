@@ -3,14 +3,17 @@ FROM arm32v6/node:18.20-alpine3.21
 # Set working directory
 WORKDIR /app
 
+# Install build dependencies including Python
+RUN apk add --no-cache python3 make g++ gcc sqlite-dev python3-dev
+
 # Install nodemon globally
 RUN npm install -g nodemon
 
 # Copy package files first for better caching
 COPY app/package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies with explicit python path
+RUN npm install --python=/usr/bin/python3
 
 # Expose port
 EXPOSE 4000
