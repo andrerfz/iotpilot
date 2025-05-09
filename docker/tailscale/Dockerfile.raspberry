@@ -2,9 +2,11 @@ FROM balenalib/raspberry-pi-debian:bullseye-run
 
 # Install dependencies
 RUN apt-get update && \
-    apt-get install -y curl gnupg apt-transport-https ca-certificates iputils-ping net-tools iptables procps && \
-    curl -fsSL https://pkgs.tailscale.com/stable/raspbian/bullseye.gpg | gpg --dearmor > /usr/share/keyrings/tailscale-archive-keyring.gpg && \
-    curl -fsSL https://pkgs.tailscale.com/stable/raspbian/bullseye.list | tee /etc/apt/sources.list.d/tailscale.list && \
+    apt-get install -y curl gnupg apt-transport-https ca-certificates iputils-ping net-tools iptables procps
+
+# Add Tailscale GPG key using the proper method
+RUN curl -fsSL https://pkgs.tailscale.com/stable/raspbian/bullseye.gpg | apt-key add - && \
+    echo "deb [signed-by=/etc/apt/trusted.gpg] https://pkgs.tailscale.com/stable/raspbian bullseye main" > /etc/apt/sources.list.d/tailscale.list && \
     apt-get update && \
     apt-get install -y tailscale && \
     rm -rf /var/lib/apt/lists/*
