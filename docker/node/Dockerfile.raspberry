@@ -1,4 +1,4 @@
-FROM arm32v7/node:18-slim
+FROM arm32v6/node:18-slim
 
 # Set working directory
 WORKDIR /app
