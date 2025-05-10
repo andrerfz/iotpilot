@@ -2,7 +2,9 @@
 
 # IotPilot Raspberry Pi Zero 2W Installer
 # This script installs IotPilot directly on a Raspberry Pi Zero 2W running Debian Bookworm
-# Usage: curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/iotpilot-pi-zero-install.sh | sudo bash
+# Usage:
+#   Basic: curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/iotpilot-pi-zero-install.sh | sudo bash
+#   With Tailscale key: curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/iotpilot-pi-zero-install.sh | sudo TAILSCALE_AUTH_KEY="tskey-auth-xxxx" bash
 
 set -e
 
@@ -253,8 +255,22 @@ EOL
 
   chmod +x $INSTALL_DIR/update-tailscale-domain.sh
 
-  log_info "Tailscale installed. You can authenticate by running 'sudo tailscale up' manually."
-  log_info "After authentication, run '$INSTALL_DIR/update-tailscale-domain.sh' to update your domain"
+  # If TAILSCALE_AUTH_KEY is provided, authenticate automatically
+  if [ -n "$TAILSCALE_AUTH_KEY" ]; then
+    log_info "Tailscale auth key detected. Authenticating automatically..."
+    tailscale up --authkey="$TAILSCALE_AUTH_KEY" --hostname="iotpilot"
+
+    # Wait for connection to establish
+    sleep 5
+
+    # Update .env file with Tailscale domain
+    $INSTALL_DIR/update-tailscale-domain.sh
+
+    log_info "Tailscale authenticated and domain updated!"
+  else
+    log_info "Tailscale installed. You can authenticate by running 'sudo tailscale up' manually."
+    log_info "After authentication, run '$INSTALL_DIR/update-tailscale-domain.sh' to update your domain"
+  fi
 }
 
 install_iotpilot() {
@@ -365,10 +381,24 @@ main() {
   log_info "  - Local HTTPS: https://iotpilot.local"
   log_info "  - Traefik Dashboard: http://iotpilot.local:8080"
 
-  log_info "To authenticate with Tailscale, run:"
-  log_info "  sudo tailscale up"
-  log_info "After authenticating, update your Tailscale domain with:"
-  log_info "  sudo $INSTALL_DIR/update-tailscale-domain.sh"
+  # Different message based on whether Tailscale was automatically authenticated
+  if [ -n "$TAILSCALE_AUTH_KEY" ]; then
+    TAILSCALE_DOMAIN=$(tailscale status --json | jq -r '.MagicDNSSuffix')
+    if [ -n "$TAILSCALE_DOMAIN" ] && [ "$TAILSCALE_DOMAIN" != "null" ]; then
+      FULL_DOMAIN="iotpilot.${TAILSCALE_DOMAIN}"
+      log_info "Tailscale is configured and active!"
+      log_info "Your device should also be accessible remotely at:"
+      log_info "  - Remote access: https://$FULL_DOMAIN"
+    else
+      log_info "Tailscale authentication was attempted but may not be complete."
+      log_info "Check status with: sudo tailscale status"
+    fi
+  else
+    log_info "To authenticate with Tailscale, run:"
+    log_info "  sudo tailscale up"
+    log_info "After authenticating, update your Tailscale domain with:"
+    log_info "  sudo $INSTALL_DIR/update-tailscale-domain.sh"
+  fi
 
   log_info "For any issues, check the logs with:"
   log_info "  sudo journalctl -u iotpilot -f"
