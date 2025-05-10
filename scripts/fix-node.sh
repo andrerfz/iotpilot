@@ -4,6 +4,9 @@
 # This script completely removes the existing Node.js installation
 # and installs a compatible version directly from binaries
 #   Basic: curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/fix-node.sh | sudo bash
+#  curl -o fix-node.sh https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/fix-node.sh
+#  chmod +x fix-node.sh
+#  sudo ./fix-node.sh
 
 set -e
 
@@ -83,59 +86,6 @@ remove_nodejs() {
   info "Existing Node.js installation removed"
 }
 
-# Install Node.js from binaries
-install_nodejs() {
-  info "Installing Node.js directly from binaries..."
-
-  # Determine architecture
-  if [ "$(uname -m)" = "armv6l" ]; then
-    NODE_ARCH="armv6l"
-  elif [ "$(uname -m)" = "armv7l" ]; then
-    NODE_ARCH="armv7l"
-  else
-    NODE_ARCH="armv6l"  # Default to armv6l for Raspberry Pi Zero
-  fi
-
-  NODE_VERSION="v16.20.2"  # Use v16 which is known to work well on Pi Zero
-  NODE_URL="https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-${NODE_ARCH}.tar.gz"
-
-  info "Using Node.js ${NODE_VERSION} for ${NODE_ARCH} architecture"
-  info "Downloading from ${NODE_URL}"
-
-  # Download Node.js binary
-  if ! wget -O /tmp/node.tar.gz "${NODE_URL}"; then
-    error "Failed to download Node.js"
-  fi
-
-  # Create directory for extraction
-  mkdir -p /usr/local/nodejs
-
-  # Extract to directory
-  if ! tar -xzf /tmp/node.tar.gz -C /usr/local/nodejs --strip-components=1; then
-    error "Failed to extract Node.js"
-  fi
-
-  # Create symlinks
-  ln -sf /usr/local/nodejs/bin/node /usr/local/bin/node
-  ln -sf /usr/local/nodejs/bin/npm /usr/local/bin/npm
-  ln -sf /usr/local/nodejs/bin/npx /usr/local/bin/npx
-
-  # Verify installation
-  if [ -x /usr/local/bin/node ]; then
-    NODE_VERSION=$(/usr/local/bin/node --version 2>/dev/null || echo "failed")
-    if [ "${NODE_VERSION}" = "failed" ]; then
-      error "Node.js installation verification failed"
-    else
-      info "Node.js ${NODE_VERSION} installed successfully"
-    fi
-  else
-    error "Node.js binary not found after installation"
-  fi
-
-  # Clean up
-  rm -f /tmp/node.tar.gz
-}
-
 # Main function
 main() {
   echo
@@ -146,7 +96,6 @@ main() {
 
   fix_hostname
   remove_nodejs
-  install_nodejs
 
   echo
   echo -e "${GREEN}Node.js has been fixed successfully!${NC}"
