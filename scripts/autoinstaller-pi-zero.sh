@@ -1,4 +1,6 @@
-#!/bin/bash
+info "Cloning repository..."
+    git clone https://github.com/andrerfz/iotpilot.git "$repo_dir" || error "Failed to clone repository"
+    cd "$repo_dir"#!/bin/bash
 
 # IotPilot Raspberry Pi Zero 2W Installer
 # This script installs IotPilot directly on a Raspberry Pi Zero 2W running Debian Bookworm
@@ -81,6 +83,10 @@ install_nodejs() {
       return 0
     else
       info "Node.js $NODE_VERSION is installed, but v20 is required. Will update."
+      # Remove current Node.js setup first
+      apt-get remove -y nodejs npm || warn "Failed to remove existing Node.js"
+      # Also remove existing nodejs repository
+      rm -f /etc/apt/sources.list.d/nodesource.list || true
     fi
   fi
 
@@ -146,7 +152,17 @@ setup_mdns() {
 
   # Update /etc/hosts to include hostname
   if grep -q "iotpilot" /etc/hosts; then
-    info "Hostname already present in /etc/hosts"
+    info "Hostname entry exists in /etc/hosts, checking if it's correct..."
+    if grep -q "127.0.1.1.*iotpilot" /etc/hosts; then
+      info "Hostname configuration looks good"
+    else
+      info "Fixing /etc/hosts entry for iotpilot..."
+      # Remove any existing 127.0.1.1 entries
+      sed -i '/127.0.1.1/d' /etc/hosts
+      # Add correct entry
+      echo "127.0.1.1       iotpilot" >> /etc/hosts
+      info "Updated /etc/hosts with correct hostname entry"
+    fi
   else
     # Add hostname to hosts file for local resolution
     sed -i '/127.0.1.1/d' /etc/hosts
@@ -299,7 +315,18 @@ EOL
   # Download Traefik binary
   info "Downloading Traefik..."
   TRAEFIK_VERSION="v2.10.5"
-  ARCH="armv6"
+
+  # Determine architecture
+  if [ "$(uname -m)" = "armv6l" ]; then
+    ARCH="armv6"
+  elif [ "$(uname -m)" = "armv7l" ]; then
+    ARCH="armv7"
+  else
+    # Default to armv6 for Raspberry Pi Zero
+    ARCH="armv6"
+  fi
+
+  info "Using architecture: $ARCH for Traefik download"
   if [ -f /usr/local/bin/traefik ]; then
     info "Traefik is already installed"
   else
@@ -354,9 +381,9 @@ setup_application() {
     cd "$repo_dir"
     git pull || warn "Failed to update repository"
   else
-    info "Cloning repository..."
-    git clone https://github.com/andrerfz/iotpilot.git "$repo_dir" || error "Failed to clone repository"
-    cd "$repo_dir"
+    # Make directory writable (in case it exists but isn't writable)
+    mkdir -p "$repo_dir" || true
+    chmod 755 "$repo_dir" || true
   fi
 
   # Create data directory
@@ -373,9 +400,24 @@ setup_application() {
     fi
   fi
 
-  # Install Node.js dependencies
+  # Install Node.js dependencies with retry and verbose output
   cd "$repo_dir/app"
-  npm install || warn "Failed to install Node.js dependencies"
+  info "Installing Node.js dependencies (this may take a while)..."
+  # Try up to 3 times to install dependencies
+  for i in {1..3}; do
+    info "Dependency installation attempt $i..."
+    npm install --unsafe-perm || {
+      warn "Attempt $i failed, waiting 10 seconds before retrying..."
+      if [ $i -lt 3 ]; then
+        sleep 10
+      else
+        warn "Failed to install Node.js dependencies after 3 attempts, but continuing anyway"
+      fi
+      continue
+    }
+    info "Dependencies installed successfully!"
+    break
+  done
 
   # Fix permissions
   chown -R iotpilot:iotpilot "$repo_dir"
