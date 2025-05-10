@@ -1,6 +1,4 @@
-info "Cloning repository..."
-    git clone https://github.com/andrerfz/iotpilot.git "$repo_dir" || error "Failed to clone repository"
-    cd "$repo_dir"#!/bin/bash
+#!/bin/bash
 
 # IotPilot Raspberry Pi Zero 2W Installer
 # This script installs IotPilot directly on a Raspberry Pi Zero 2W running Debian Bookworm
@@ -71,9 +69,34 @@ install_system_dependencies() {
     || error "Failed to install required system packages"
 }
 
-# Install Node.js
+# Fix hostname resolution issues
+fix_hostname_resolution() {
+  info "Fixing hostname resolution..."
+
+  # Set hostname to iotpilot if not already set
+  CURRENT_HOSTNAME=$(hostname)
+  if [ "$CURRENT_HOSTNAME" != "iotpilot" ]; then
+    hostnamectl set-hostname iotpilot || warn "Failed to set hostname to iotpilot"
+    info "Hostname set to iotpilot"
+  else
+    info "Hostname is already set to iotpilot"
+  fi
+
+  # Fix /etc/hosts to ensure proper hostname resolution
+  if grep -q "127.0.1.1.*iotpilot" /etc/hosts; then
+    info "Hosts file is properly configured"
+  else
+    # Remove any existing 127.0.1.1 entries
+    sed -i '/127.0.1.1/d' /etc/hosts
+    # Add correct entry
+    echo "127.0.1.1       iotpilot" >> /etc/hosts
+    info "Updated hosts file with correct hostname entry"
+  fi
+}
+
+# Install Node.js 20
 install_nodejs() {
-  info "Installing Node.js..."
+  info "Installing Node.js 20..."
 
   # Check if Node.js is already installed and at right version
   if command -v node &> /dev/null; then
@@ -83,31 +106,27 @@ install_nodejs() {
       return 0
     else
       info "Node.js $NODE_VERSION is installed, but v20 is required. Will update."
-      # Remove current Node.js setup first
+      # Remove existing Node.js
       apt-get remove -y nodejs npm || warn "Failed to remove existing Node.js"
-      # Also remove existing nodejs repository
-      rm -f /etc/apt/sources.list.d/nodesource.list || true
+      # Clean up repositories
+      rm -f /etc/apt/sources.list.d/nodesource*.list
     fi
   fi
 
-  # Download and install Node.js 20.x
-  if [ "$IS_RASPBERRY" = true ]; then
-    # Use NodeSource repository for Raspberry Pi
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - || error "Failed to setup Node.js repository"
-    apt-get install -y nodejs || error "Failed to install Node.js"
-  else
-    # Fallback method
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - || error "Failed to setup Node.js repository"
-    apt-get install -y nodejs || error "Failed to install Node.js"
-  fi
+  # Install Node.js 20
+  info "Setting up NodeSource repository..."
+  curl -fsSL https://deb.nodesource.com/setup_20.x | bash - || error "Failed to setup Node.js repository"
 
-  # Install nodemon globally for development
-  npm install -g nodemon || warn "Failed to install nodemon globally"
+  info "Installing Node.js 20..."
+  apt-get install -y nodejs || error "Failed to install Node.js"
 
   # Verify installation
   NODE_VERSION=$(node --version)
   NPM_VERSION=$(npm --version)
   info "Node.js $NODE_VERSION and npm $NPM_VERSION installed successfully"
+
+  # Install nodemon globally
+  npm install -g nodemon || warn "Failed to install nodemon globally"
 }
 
 # Install Tailscale if auth key is provided
@@ -146,29 +165,6 @@ install_tailscale() {
 # Configure mDNS for local hostname resolution
 setup_mdns() {
   info "Setting up mDNS for local hostname resolution..."
-
-  # Set hostname to iotpilot
-  hostnamectl set-hostname iotpilot || warn "Failed to set hostname to iotpilot"
-
-  # Update /etc/hosts to include hostname
-  if grep -q "iotpilot" /etc/hosts; then
-    info "Hostname entry exists in /etc/hosts, checking if it's correct..."
-    if grep -q "127.0.1.1.*iotpilot" /etc/hosts; then
-      info "Hostname configuration looks good"
-    else
-      info "Fixing /etc/hosts entry for iotpilot..."
-      # Remove any existing 127.0.1.1 entries
-      sed -i '/127.0.1.1/d' /etc/hosts
-      # Add correct entry
-      echo "127.0.1.1       iotpilot" >> /etc/hosts
-      info "Updated /etc/hosts with correct hostname entry"
-    fi
-  else
-    # Add hostname to hosts file for local resolution
-    sed -i '/127.0.1.1/d' /etc/hosts
-    echo "127.0.1.1       iotpilot" >> /etc/hosts
-    info "Added iotpilot to /etc/hosts"
-  fi
 
   # Configure Avahi
   if [ -f /etc/avahi/avahi-daemon.conf ]; then
@@ -384,6 +380,10 @@ setup_application() {
     # Make directory writable (in case it exists but isn't writable)
     mkdir -p "$repo_dir" || true
     chmod 755 "$repo_dir" || true
+
+    info "Cloning repository..."
+    git clone https://github.com/andrerfz/iotpilot.git "$repo_dir" || error "Failed to clone repository"
+    cd "$repo_dir"
   fi
 
   # Create data directory
@@ -474,6 +474,7 @@ show_information() {
   echo "Access your installation at:"
   echo "  - HTTP: http://iotpilot.local"
   echo "  - HTTPS: https://iotpilot.local"
+  echo "  - Traefik Dashboard: http://iotpilot.local:8080"
   echo
   echo "API documentation is available at:"
   echo "  - http://iotpilot.local/api-docs"
@@ -511,6 +512,7 @@ main() {
 
   # Run installation steps
   install_system_dependencies
+  fix_hostname_resolution
   install_nodejs
   setup_mdns
   install_tailscale
