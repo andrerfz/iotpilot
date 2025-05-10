@@ -553,8 +553,8 @@ main() {
 
   # Run installation steps
   detect_raspberry_pi
-  install_system_dependencies
   fix_hostname_resolution
+  install_system_dependencies
   install_nodejs
   setup_mdns
   install_tailscale
