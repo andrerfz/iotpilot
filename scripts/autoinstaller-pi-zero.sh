@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # IotPilot Raspberry Pi Zero 2W Installer
 # This script installs IotPilot directly on a Raspberry Pi Zero 2W running Debian Bookworm
 # Usage:
@@ -77,25 +79,26 @@ install_system_dependencies() {
 fix_hostname_resolution() {
   info "Fixing hostname resolution..."
 
-  # Set hostname to iotpilot if not already set
+  # Get current hostname
   CURRENT_HOSTNAME=$(hostname)
-  if [ "$CURRENT_HOSTNAME" != "iotpilot" ]; then
-    hostnamectl set-hostname iotpilot || warn "Failed to set hostname to iotpilot"
-    info "Hostname set to iotpilot"
-  else
-    info "Hostname is already set to iotpilot"
-  fi
+  info "Current hostname is: $CURRENT_HOSTNAME"
 
   # Fix /etc/hosts to ensure proper hostname resolution
-  if grep -q "127.0.1.1.*iotpilot" /etc/hosts; then
-    info "Hosts file is properly configured"
+  if grep -q "127.0.1.1.*$CURRENT_HOSTNAME" /etc/hosts; then
+    info "Hosts file is properly configured for $CURRENT_HOSTNAME"
   else
-    # Remove any existing 127.0.1.1 entries
-    sed -i '/127.0.1.1/d' /etc/hosts
-    # Add correct entry
-    echo "127.0.1.1       iotpilot" >> /etc/hosts
+    # Only modify existing 127.0.1.1 entries if they don't match current hostname
+    if grep -q "127.0.1.1" /etc/hosts; then
+      info "Updating existing 127.0.1.1 entry in hosts file"
+      sed -i "s/127.0.1.1.*/127.0.1.1       $CURRENT_HOSTNAME/" /etc/hosts
+    else
+      info "Adding new 127.0.1.1 entry to hosts file"
+      echo "127.0.1.1       $CURRENT_HOSTNAME" >> /etc/hosts
+    fi
     info "Updated hosts file with correct hostname entry"
   fi
+
+  # We will use Avahi to publish as iotpilot.local regardless of system hostname
 }
 
 # Install Node.js 20
@@ -124,10 +127,9 @@ install_nodejs() {
   # Install Node.js 20
   info "Setting up NodeSource repository..."
   set -x  # Turn on debug mode to see what's happening
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-  RET=$?
-  set +x  # Turn off debug mode
-  if [ $RET -ne 0 ]; then
+  if ! curl -fsSL https://deb.nodesource.com/setup_20.x | bash -; then
+    set +x  # Turn off debug mode
+    warn "Failed to set up NodeSource repository. Trying alternative method..."
     warn "Failed to set up NodeSource repository. Trying alternative method..."
     # Alternative method
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
@@ -138,15 +140,21 @@ install_nodejs() {
 
   info "Installing Node.js 20..."
   set -x  # Turn on debug mode
-  apt-get install -y nodejs
-  RET=$?
-  set +x  # Turn off debug mode
-  if [ $RET -ne 0 ]; then
+  if ! apt-get install -y nodejs; then
+    set +x  # Turn off debug mode
     warn "Standard installation failed. Trying direct installation..."
     # Try the binary method as a fallback
     set -x  # Turn on debug mode
-    wget -q --show-progress "https://nodejs.org/dist/v20.13.1/node-v20.13.1-linux-armv6l.tar.gz" -O /tmp/node.tar.gz
-    tar -xzf /tmp/node.tar.gz -C /usr/local --strip-components=1
+    if ! wget -q --show-progress "https://nodejs.org/dist/v20.13.1/node-v20.13.1-linux-armv6l.tar.gz" -O /tmp/node.tar.gz; then
+      set +x
+      error "Failed to download Node.js binary package"
+    fi
+
+    if ! tar -xzf /tmp/node.tar.gz -C /usr/local --strip-components=1; then
+      set +x
+      error "Failed to extract Node.js package"
+    fi
+
     rm /tmp/node.tar.gz
     set +x
     if [ $? -ne 0 ]; then
@@ -553,14 +561,13 @@ main() {
 
   # Run installation steps
   detect_raspberry_pi
-  fix_hostname_resolution
   install_system_dependencies
+  fix_hostname_resolution
   install_nodejs
   setup_mdns
   install_tailscale
   install_traefik
   setup_application
-  update_makefile
   create_systemd_service
   show_information
 }
