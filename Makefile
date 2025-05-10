@@ -110,3 +110,56 @@ traefik-dashboard:
 	@HOST_NAME=$$(grep HOST_NAME .env | cut -d '=' -f2 | tr -d '"' | tr -d "'"); \
 	if [ -z "$$HOST_NAME" ]; then HOST_NAME="iotpilot.local"; fi; \
 	echo "Traefik dashboard available at: http://$$HOST_NAME:8080"
+
+
+# Production service log commands
+logs-prod-nodejs:
+	@systemctl status iotpilot
+	@echo "===== LAST 50 LOG LINES ====="
+	@journalctl -u iotpilot -n 50 --no-pager
+
+logs-prod-traefik:
+	@systemctl status traefik
+	@echo "===== LAST 50 LOG LINES ====="
+	@journalctl -u traefik -n 50 --no-pager
+
+logs-prod-tailscale:
+	@systemctl status tailscaled
+	@echo "===== LAST 50 LOG LINES ====="
+	@journalctl -u tailscaled -n 50 --no-pager
+
+logs-prod-avahi:
+	@systemctl status avahi-daemon
+	@echo "===== LAST 50 LOG LINES ====="
+	@journalctl -u avahi-daemon -n 50 --no-pager
+
+logs-prod-all:
+	@echo "===== NODE.JS LOGS ====="
+	@journalctl -u iotpilot -n 20 --no-pager
+	@echo "===== TRAEFIK LOGS ====="
+	@journalctl -u traefik -n 20 --no-pager
+	@echo "===== TAILSCALE LOGS ====="
+	@journalctl -u tailscaled -n 20 --no-pager
+	@echo "===== AVAHI LOGS ====="
+	@journalctl -u avahi-daemon -n 20 --no-pager
+
+# Production service management commands
+restart-prod-nodejs:
+	@systemctl restart iotpilot
+	@echo "Node.js service restarted"
+
+restart-prod-traefik:
+	@systemctl restart traefik
+	@echo "Traefik service restarted"
+
+restart-prod-all:
+	@systemctl restart traefik
+	@systemctl restart iotpilot
+	@echo "All services restarted"
+
+status-prod:
+	@echo "===== SERVICE STATUS ====="
+	@systemctl status traefik --no-pager
+	@systemctl status iotpilot --no-pager
+	@systemctl status tailscaled --no-pager
+	@systemctl status avahi-daemon --no-pager
