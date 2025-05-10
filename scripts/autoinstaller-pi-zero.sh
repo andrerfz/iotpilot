@@ -104,18 +104,18 @@ fix_hostname_resolution() {
   # We will use Avahi to publish as iotpilot.local regardless of system hostname
 }
 
-# Install Node.js 20
+# Install Node.js 16
 install_nodejs() {
-  info "Installing Node.js 20..."
+  info "Installing Node.js 16..."
 
   # Check if Node.js is already installed and at right version
   if command -v node &> /dev/null; then
     NODE_VERSION=$(node --version)
-    if [[ "$NODE_VERSION" == "v20"* ]]; then
-      info "Node.js v20 is already installed: $NODE_VERSION"
+    if [[ "$NODE_VERSION" == "16"* ]]; then
+      info "Node.js v16 is already installed: $NODE_VERSION"
       return 0
     else
-      info "Node.js $NODE_VERSION is installed, but v20 is required. Will update."
+      info "Node.js $NODE_VERSION is installed, but 16 is required. Will update."
       # Remove existing Node.js
       info "Removing existing Node.js installation..."
       apt-get remove -y nodejs npm || warn "Failed to remove existing Node.js"
@@ -127,28 +127,28 @@ install_nodejs() {
     fi
   fi
 
-  # Install Node.js 20
+  # Install Node.js 16
   info "Setting up NodeSource repository..."
   set -x  # Turn on debug mode to see what's happening
-  if ! curl -fsSL https://deb.nodesource.com/setup_20.x | bash -; then
+  if ! curl -fsSL https://deb.nodesource.com/setup_16.x | bash -; then
     set +x  # Turn off debug mode
     warn "Failed to set up NodeSource repository. Trying alternative method..."
     warn "Failed to set up NodeSource repository. Trying alternative method..."
     # Alternative method
-    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_16.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
     mkdir -p /etc/apt/keyrings
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
     apt-get update
   fi
 
-  info "Installing Node.js 20..."
+  info "Installing Node.js 16..."
   set -x  # Turn on debug mode
   if ! apt-get install -y nodejs; then
     set +x  # Turn off debug mode
     warn "Standard installation failed. Trying direct installation..."
     # Try the binary method as a fallback
     set -x  # Turn on debug mode
-    if ! wget -q --show-progress "https://nodejs.org/dist/v20.13.1/node-v20.13.1-linux-armv6l.tar.gz" -O /tmp/node.tar.gz; then
+    if ! wget -q --show-progress "https://nodejs.org/dist/v16.9.1/node-v16.9.1-linux-armv6l.tar.gz" -O /tmp/node.tar.gz; then
       set +x
       error "Failed to download Node.js binary package"
     fi
@@ -161,7 +161,7 @@ install_nodejs() {
     rm /tmp/node.tar.gz
     set +x
     if [ $? -ne 0 ]; then
-      error "Failed to install Node.js 20. Please check internet connection and try again."
+      error "Failed to install Node.js 16. Please check internet connection and try again."
     fi
   fi
 
