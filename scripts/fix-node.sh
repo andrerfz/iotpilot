@@ -3,6 +3,7 @@
 # Script to fix Node.js on Raspberry Pi Zero
 # This script completely removes the existing Node.js installation
 # and installs a compatible version directly from binaries
+#   Basic: curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/fix-node.sh | sudo bash
 
 set -e
 
