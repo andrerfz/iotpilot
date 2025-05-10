@@ -333,38 +333,6 @@ EOL
   log_info "IotPilot application installed and service started"
 }
 
-configure_nginx_proxy() {
-  log_info "Setting up Nginx as a reverse proxy..."
-
-  # Install Nginx
-  apt-get install -y nginx
-
-  # Create Nginx configuration for proxying to IotPilot
-  cat > /etc/nginx/sites-available/iotpilot << EOL
-server {
-    listen 80;
-    server_name iotpilot.local;
-
-    location / {
-        proxy_pass http://localhost:4000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
-    }
-}
-EOL
-
-  # Enable site
-  ln -sf /etc/nginx/sites-available/iotpilot /etc/nginx/sites-enabled/
-
-  # Test and restart Nginx
-  nginx -t && systemctl restart nginx
-
-  log_info "Nginx configured as reverse proxy"
-}
-
 # Main installation
 main() {
   log_info "Starting IotPilot installation for Raspberry Pi Zero 2W..."
