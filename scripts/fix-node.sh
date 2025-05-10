@@ -100,8 +100,8 @@ main() {
   echo
   echo -e "${GREEN}Node.js has been fixed successfully!${NC}"
   echo "You can verify by running:"
-  echo "  node --version"
-  echo "  npm --version"
+  echo "which node"
+  echo "which npm"
   echo
   echo "Now you can run the IotPilot installer script again."
   echo
