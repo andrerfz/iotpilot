@@ -5,7 +5,7 @@
 # Usage:
 #   Basic: curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/autoinstaller-pi-zero.sh | sudo bash
 #   With Tailscale key: curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/autoinstaller-pi-zero.sh | sudo TAILSCALE_AUTH_KEY="tskey-auth-xxxx" bash
-#  curl -o autoinstaller.sh https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/fix-node.sh
+#  curl -o autoinstaller.sh https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/autoinstaller-pi-zero.sh
 #  chmod +x autoinstaller.sh
 #  sudo ./autoinstaller.sh
 
