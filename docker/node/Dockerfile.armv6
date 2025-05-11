@@ -1,0 +1,55 @@
+# Use Balena's base image which supports ARMv6
+FROM balenalib/raspberry-pi-debian:buster
+
+# Install Node.js 16.x
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 16.x for ARMv6
+RUN curl -fsSL https://unofficial-builds.nodejs.org/download/release/v16.20.2/node-v16.20.2-linux-armv6l.tar.xz | \
+    tar -xJ -C /usr/local --strip-components=1
+
+# Set working directory
+WORKDIR /app
+
+# Verify Node.js installation
+RUN node --version && npm --version
+
+# Copy package files first (for better caching)
+COPY app/package.json app/package-lock.json ./
+
+# Set memory limit for Node to avoid crashes during build
+ENV NODE_OPTIONS="--max-old-space-size=512"
+
+# Install dependencies in multiple steps to avoid memory issues
+RUN npm install --no-optional --no-save sqlite3 && \
+    npm install --no-optional --no-save better-sqlite3 && \
+    npm install --no-optional --no-save sequelize && \
+    npm install --no-optional --no-save express && \
+    npm install --no-optional
+
+# Create data directory
+RUN mkdir -p /app/data && chmod 777 /app/data
+
+# Test SQLite functionality
+RUN node -e "try { const sqlite3 = require('sqlite3'); \
+    const db = new sqlite3.Database(':memory:'); \
+    db.serialize(() => { \
+      db.run('CREATE TABLE test (id INT, name TEXT)'); \
+      db.run('INSERT INTO test VALUES (1, \"test\")'); \
+      db.each('SELECT * FROM test', (err, row) => { \
+        console.log('SQLite test:', row); \
+      }); \
+    }); \
+    db.close(() => console.log('SQLite test successful!')); } \
+    catch(e) { console.error('SQLite test failed:', e); process.exit(1); }"
+
+# Package the node_modules directory
+CMD mkdir -p /output && \
+    tar -czf /output/node_modules.tar.gz node_modules && \
+    echo "Package successfully created!"

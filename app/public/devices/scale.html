@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Pilot - Scale Devices</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background-color: #3498db;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        h1, h2 {
+            margin: 0;
+        }
+        .actions-bar {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+        .btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        .btn-back {
+            background-color: #7f8c8d;
+        }
+        .btn-add {
+            background-color: #2ecc71;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .status-active {
+            color: #2ecc71;
+            font-weight: bold;
+        }
+        .status-inactive {
+            color: #e74c3c;
+        }
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn-action {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+        .btn-edit {
+            background-color: #f39c12;
+        }
+        .btn-delete {
+            background-color: #e74c3c;
+        }
+        .btn-manage {
+            background-color: #3498db;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 5px;
+            width: 60%;
+            max-width: 500px;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover {
+            color: black;
+        }
+        form {
+            display: grid;
+            grid-gap: 15px;
+        }
+        label {
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            background-color: white;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }
+        .api-info {
+            margin-top: 15px;
+            background-color: #edf7ff;
+            padding: 10px 15px;
+            border-radius: 4px;
+            border-left: 4px solid #3498db;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Scale Devices</h1>
+</header>
+
+<div class="container">
+    <div class="actions-bar">
+        <button class="btn btn-back" onclick="window.location.href='/'">Back to Home</button>
+        <button class="btn btn-add" onclick="openDeviceModal()">Add New Scale</button>
+    </div>
+
+    <div id="device-table-container">
+        <!-- Table will be populated via JavaScript -->
+    </div>
+
+    <!-- Device Form Modal -->
+    <div id="deviceModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeDeviceModal()">&times;</span>
+            <h2 id="modal-title">Add New Scale</h2>
+            <form id="deviceForm">
+                <input type="hidden" id="device-id">
+
+                <div>
+                    <label for="device-name">Device Name</label>
+                    <input type="text" id="device-name" required placeholder="Enter device name">
+                </div>
+
+                <div>
+                    <label for="device-host">Host</label>
+                    <input type="text" id="device-host" required placeholder="Enter IP address">
+                </div>
+
+                <div>
+                    <label for="device-port">Port</label>
+                    <input type="number" id="device-port" required placeholder="Enter port number">
+                </div>
+
+                <div>
+                    <label for="device-description">Description</label>
+                    <textarea id="device-description" rows="3" placeholder="Enter device description"></textarea>
+                </div>
+
+                <div>
+                    <label for="device-active">Status</label>
+                    <select id="device-active">
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                    </select>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-back" onclick="closeDeviceModal()">Cancel</button>
+                    <button type="submit" class="btn btn-add">Save Device</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>IoT Pilot v1.0.0 - For more information, view the <a href="/api-docs">API Documentation</a></p>
+    </div>
+</div>
+
+<script>
+    // Load devices when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+        loadDevices();
+    });
+
+    // Load devices from API
+    async function loadDevices() {
+        try {
+            const response = await fetch('/api/devices');
+            const devices = await response.json();
+            renderDeviceTable(devices);
+        } catch (error) {
+            console.error('Error loading devices:', error);
+            document.getElementById('device-table-container').innerHTML =
+                `<div class="empty-state">
+                        <h3>Error loading devices</h3>
+                        <p>${error.message}</p>
+                    </div>`;
+        }
+    }
+
+    // Render device table
+    function renderDeviceTable(devices) {
+        const container = document.getElementById('device-table-container');
+
+        if (devices.length === 0) {
+            container.innerHTML =
+                `<div class="empty-state">
+                        <h3>No Devices Found</h3>
+                        <p>Click the "Add New Scale" button to add your first device.</p>
+                    </div>`;
+            return;
+        }
+
+        let tableHtml = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Host (IP)</th>
+                            <th>Port</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+        devices.forEach(device => {
+            const deviceId = device.id; // Store ID in a variable to ensure it's properly handled
+            tableHtml += `
+                    <tr>
+                        <td>${deviceId}</td>
+                        <td>${device.name}</td>
+                        <td>${device.host}</td>
+                        <td>${device.port}</td>
+                        <td class="${device.active ? 'status-active' : 'status-inactive'}">
+                            ${device.active ? 'Active' : 'Inactive'}
+                        </td>
+                        <td class="actions">
+                            <button class="btn btn-action btn-manage" onclick="redirectToDeviceControl(${deviceId})">Manage</button>
+                            <button class="btn btn-action btn-edit" onclick="editDevice(${deviceId})">Edit</button>
+                            <button class="btn btn-action btn-delete" onclick="deleteDevice(${deviceId})">Delete</button>
+                        </td>
+                    </tr>
+                `;
+        });
+
+        tableHtml += `
+                    </tbody>
+                </table>
+            `;
+
+        container.innerHTML = tableHtml;
+    }
+
+    // Redirect to device control panel
+    function redirectToDeviceControl(deviceId) {
+        if (!deviceId) {
+            alert('Device ID is missing. Please try again.');
+            return;
+        }
+        window.location.href = `/devices/control.html?deviceId=${deviceId}`;
+        console.log(`Redirecting to control panel for device ${deviceId}`);
+    }
+
+    // Device form modal functions
+    function openDeviceModal(device = null) {
+        document.getElementById('modal-title').textContent = device ? 'Edit Scale' : 'Add New Scale';
+
+        if (device) {
+            document.getElementById('device-id').value = device.id;
+            document.getElementById('device-name').value = device.name;
+            document.getElementById('device-host').value = device.host;
+            document.getElementById('device-port').value = device.port;
+            document.getElementById('device-description').value = device.description || '';
+            document.getElementById('device-active').value = device.active.toString();
+        } else {
+            document.getElementById('deviceForm').reset();
+            document.getElementById('device-id').value = '';
+        }
+
+        document.getElementById('deviceModal').style.display = 'block';
+    }
+
+    function closeDeviceModal() {
+        document.getElementById('deviceModal').style.display = 'none';
+    }
+
+    // Edit device
+    async function editDevice(deviceId) {
+        try {
+            const response = await fetch(`/api/devices/${deviceId}`);
+            const device = await response.json();
+            openDeviceModal(device);
+        } catch (error) {
+            console.error('Error getting device:', error);
+            alert('Error getting device details. Please try again.');
+        }
+    }
+
+    // Delete device
+    async function deleteDevice(deviceId) {
+        if (!confirm('Are you sure you want to delete this device?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/devices/${deviceId}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                loadDevices();
+            } else {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to delete device');
+            }
+        } catch (error) {
+            console.error('Error deleting device:', error);
+            alert(`Error: ${error.message}`);
+        }
+    }
+
+    // Handle form submission
+    document.getElementById('deviceForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const deviceId = document.getElementById('device-id').value;
+        const deviceData = {
+            name: document.getElementById('device-name').value,
+            host: document.getElementById('device-host').value,
+            port: parseInt(document.getElementById('device-port').value),
+            description: document.getElementById('device-description').value,
+            active: document.getElementById('device-active').value === 'true',
+            type: 'scale'
+        };
+
+        try {
+            let response;
+
+            if (deviceId) {
+                // Update existing device
+                response = await fetch(`/api/devices/${deviceId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(deviceData)
+                });
+            } else {
+                // Create new device
+                response = await fetch('/api/devices', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(deviceData)
+                });
+            }
+
+            if (response.ok) {
+                closeDeviceModal();
+                loadDevices();
+            } else {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to save device');
+            }
+        } catch (error) {
+            console.error('Error saving device:', error);
+            alert(`Error: ${error.message}`);
+        }
+    });
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+        const modal = document.getElementById('deviceModal');
+        if (event.target === modal) {
+            closeDeviceModal();
+        }
+    }
+</script>
+</body>
+</html>

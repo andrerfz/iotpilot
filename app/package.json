@@ -1,0 +1,33 @@
+{
+  "name": "iotpilot",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node --max-old-space-size=256 server.js",
+    "dev": "nodemon --max-old-space-size=256 server.js --legacy-watch"
+  },
+  "keywords": [
+    "iot",
+    "devices",
+    "scale",
+    "management"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "sequelize": "^6.32.1",
+    "sqlite3": "^5.1.6",
+    "better-sqlite3": "^8.3.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^4.6.3"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  },
+  "description": "Micro server designed to provide a bridge connection from App to IoT devices on local host, providing full remote management and scalability.",
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

@@ -1,0 +1,8 @@
+/vendor
+/.idea/
+/node_modules/
+/docker/traefik/config/certs/
+
+.env
+*.log
+.DS_Store

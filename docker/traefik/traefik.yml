@@ -1,0 +1,43 @@
+### 1. Update docker/traefik/traefik.yml
+
+api:
+  insecure: true  # Enable the dashboard (set to false in production)
+  dashboard: true
+
+entryPoints:
+  web:
+    address: ":80"
+    # Remove any HTTP to HTTPS redirections here
+  websecure:
+    address: ":443"
+    http:
+      tls:
+        domains:
+          - main: "${HOST_NAME:-iotpilot.test}"
+            sans:
+              - "*.${HOST_NAME:-iotpilot.test}"
+          - main: "${TAILSCALE_DOMAIN:-}"
+            sans:
+              - "*.${TAILSCALE_DOMAIN:-}"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+  file:
+    directory: /etc/traefik/config/
+    watch: true
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: "${ACME_EMAIL}"
+      storage: /etc/traefik/acme/acme.json
+      tlsChallenge: {}
+
+# Enable access logs
+accessLog: {}
+
+# Log level
+log:
+  level: "INFO"

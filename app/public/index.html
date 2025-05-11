@@ -1,0 +1,121 @@
+<!-- app/public/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Pilot - Home</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background-color: #3498db;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        h1, h2 {
+            margin: 0;
+        }
+        .subheader {
+            font-size: 1.2em;
+            opacity: 0.8;
+            margin-top: 10px;
+        }
+        .device-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .device-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            width: 250px;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+            cursor: pointer;
+        }
+        .device-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .card-header {
+            background-color: #3498db;
+            color: white;
+            padding: 15px;
+            text-align: center;
+        }
+        .card-body {
+            padding: 20px;
+            text-align: center;
+        }
+        .card-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        .card-description {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>IoT Pilot</h1>
+    <div class="subheader">Multi-Device IoT Management Platform</div>
+</header>
+
+<div class="container">
+    <h2>Supported Device Types</h2>
+    <p>Select a device type to manage your IoT devices</p>
+
+    <div class="device-grid">
+        <div class="device-card" onclick="window.location.href='devices/scale.html'">
+            <div class="card-header">
+                <h3>Scales</h3>
+            </div>
+            <div class="card-body">
+                <div class="card-icon">⚖️</div>
+                <p>Manage and control your connected scales</p>
+                <p class="card-description">Support for HF2211 and compatible scales</p>
+            </div>
+        </div>
+
+        <!-- Additional device types will be added here as they are supported -->
+        <!-- Example for future use:
+        <div class="device-card" onclick="window.location.href='/devices/thermostat.html'">
+            <div class="card-header">
+                <h3>Thermostats</h3>
+            </div>
+            <div class="card-body">
+                <div class="card-icon">🌡️</div>
+                <p>Manage and control your connected thermostats</p>
+                <p class="card-description">Coming soon...</p>
+            </div>
+        </div>
+        -->
+    </div>
+
+    <div class="footer">
+        <p>IoT Pilot v1.0.0 - For more information, view the <a href="/api-docs">API Documentation</a></p>
+    </div>
+</div>
+</body>
+</html>
