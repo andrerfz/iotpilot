@@ -61,7 +61,8 @@ function parseResponse(data, command, rawResponse = '') {
  */
 function parseWeightResponse(data) {
     const responseData = {
-        type: 'weight'
+        type: 'weight',
+        unit: 'kg',
     };
 
     // Extract the weight data fields
@@ -78,7 +79,7 @@ function parseWeightResponse(data) {
     // Calculate net weight
     const grossVal = parseFloat(responseData.gross.replace('W', '').trim());
     const tareVal = parseFloat(responseData.tare.replace('T', '').trim());
-    responseData.net = isNaN(grossVal) || isNaN(tareVal) ? null : grossVal - tareVal;
+    responseData.weight = isNaN(grossVal) || isNaN(tareVal) ? null : grossVal - tareVal;
 
     // Parse status flags
     const flagsValue = parseInt(responseData.flags.slice(1), 16);
