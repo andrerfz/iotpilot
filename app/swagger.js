@@ -1,8 +1,8 @@
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 
-// Get hostname from environment or default to localhost
-const HOST_NAME = process.env.HOST_NAME || 'localhost';
+// Get hostname from environment or default to iotpilot.test
+const HOST_NAME = process.env.HOST_NAME || 'iotpilot.test';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Determine if we're in development mode
