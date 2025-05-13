@@ -4,7 +4,7 @@ const HTTP_PORT = 4000;
 const path = require('path');
 
 // Import Swagger
-const { swaggerSpec, swaggerUi } = require('./swagger');
+const { swaggerSpec, swaggerUi, swaggerUiOptions } = require('./swagger');
 
 // Import database and device manager
 const { initDatabase } = require('./db');
@@ -43,10 +43,7 @@ if (!fs.existsSync(devicesDir)) {
 }
 
 // Serve Swagger documentation
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-    explorer: true,
-    customCss: '.swagger-ui .topbar { display: none }'
-}));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions));
 
 // Initialize database
 initDatabase().then((success) => {

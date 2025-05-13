@@ -573,7 +573,20 @@ const swaggerSpec = swaggerJsdoc(options);
  *               $ref: '#/components/schemas/Error'
  */
 
+const swaggerUiOptions = {
+    explorer: true,
+    swaggerOptions: {
+        docExpansion: 'list',
+        filter: true,
+        tryItOutEnabled: true,
+        supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch'],
+        persistAuthorization: true
+    },
+    customCss: '.swagger-ui .topbar { display: none }'
+};
+
 module.exports = {
     swaggerSpec,
-    swaggerUi
+    swaggerUi,
+    swaggerUiOptions
 };
