@@ -32,7 +32,7 @@ const options = {
             {
                 url: 'https://iotpilot.local',
                 description: 'Production server TLS'
-            },
+            }
         ],
         components: {
             schemas: {
