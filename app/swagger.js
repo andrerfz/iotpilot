@@ -1,6 +1,47 @@
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 
+// Get hostname from environment or default to localhost
+const HOST_NAME = process.env.HOST_NAME || 'localhost';
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// Determine if we're in development mode
+const isDev = NODE_ENV === 'development';
+
+// Define servers array dynamically
+let servers = [];
+
+// Always add the current server as the first option
+servers.push({
+    url: '/',
+    description: 'Current server'
+});
+
+// Add development and production servers
+if (isDev) {
+    servers.push(
+        {
+            url: `http://${HOST_NAME}:4080`,
+            description: 'Development server (HTTP)'
+        },
+        {
+            url: `https://${HOST_NAME}:4443`,
+            description: 'Development server (HTTPS)'
+        }
+    );
+} else {
+    servers.push(
+        {
+            url: `http://${HOST_NAME}`,
+            description: 'Production server (HTTP)'
+        },
+        {
+            url: `https://${HOST_NAME}`,
+            description: 'Production server (HTTPS)'
+        }
+    );
+}
+
 const options = {
     definition: {
         openapi: '3.0.0',
@@ -16,24 +57,7 @@ const options = {
                 url: 'https://opensource.org/licenses/MIT'
             }
         },
-        servers: [
-            {
-                url: 'http://iotpilot.test:4080',
-                description: 'Development server'
-            },
-            {
-                url: 'https://iotpilot.test:4443',
-                description: 'Development server TLS'
-            },
-            {
-                url: 'http://iotpilot.local',
-                description: 'Production server'
-            },
-            {
-                url: 'https://iotpilot.local',
-                description: 'Production server TLS'
-            }
-        ],
+        servers: servers,
         components: {
             schemas: {
                 Device: {
@@ -86,11 +110,15 @@ const options = {
                         type: {
                             type: 'string',
                             description: 'Response type',
-                            enum: ['weight', 'tare', 'status', 'error']
+                            enum: ['weight', 'tare', 'status', 'error', 'presetTare', 'clearPreset']
                         },
-                        data: {
-                            type: 'object',
-                            description: 'Response data (varies by response type)'
+                        message: {
+                            type: 'string',
+                            description: 'Response message'
+                        },
+                        success: {
+                            type: 'boolean',
+                            description: 'Whether the operation was successful'
                         },
                         error: {
                             type: 'string',
@@ -99,60 +127,131 @@ const options = {
                     }
                 },
                 WeightResponse: {
-                    allOf: [
-                        { $ref: '#/components/schemas/Response' },
-                        {
+                    type: 'object',
+                    properties: {
+                        type: {
+                            type: 'string',
+                            enum: ['weight'],
+                            description: 'Response type'
+                        },
+                        gross: {
+                            type: 'string',
+                            description: 'Gross weight reading'
+                        },
+                        tare: {
+                            type: 'string',
+                            description: 'Tare weight'
+                        },
+                        net: {
+                            type: 'number',
+                            description: 'Net weight (gross - tare) in kg'
+                        },
+                        statusFlags: {
                             type: 'object',
                             properties: {
-                                data: {
-                                    type: 'object',
-                                    properties: {
-                                        weight: {
-                                            type: 'number',
-                                            description: 'Current weight reading in kg'
-                                        },
-                                        unit: {
-                                            type: 'string',
-                                            description: 'Unit of measurement',
-                                            enum: ['kg', 'g']
-                                        },
-                                        stable: {
-                                            type: 'boolean',
-                                            description: 'Whether the weight reading is stable'
-                                        }
-                                    }
+                                zero: {
+                                    type: 'boolean',
+                                    description: 'Whether scale is at zero'
+                                },
+                                tare: {
+                                    type: 'boolean',
+                                    description: 'Whether scale has a tare value'
+                                },
+                                stable: {
+                                    type: 'boolean',
+                                    description: 'Whether weight reading is stable'
+                                },
+                                net: {
+                                    type: 'boolean',
+                                    description: 'Whether display shows net weight'
+                                },
+                                tareMode: {
+                                    type: 'string',
+                                    description: 'Current tare mode',
+                                    enum: ['normal', 'preset']
+                                },
+                                presetTare: {
+                                    type: 'boolean',
+                                    description: 'Whether preset tare is active'
                                 }
                             }
+                        },
+                        lrcValid: {
+                            type: 'boolean',
+                            description: 'Whether the checksum is valid'
                         }
-                    ]
+                    }
                 },
                 StatusResponse: {
-                    allOf: [
-                        { $ref: '#/components/schemas/Response' },
-                        {
+                    type: 'object',
+                    properties: {
+                        type: {
+                            type: 'string',
+                            enum: ['status'],
+                            description: 'Response type'
+                        },
+                        status: {
                             type: 'object',
                             properties: {
-                                data: {
-                                    type: 'object',
-                                    properties: {
-                                        status: {
-                                            type: 'string',
-                                            description: 'Device status',
-                                            enum: ['ready', 'busy', 'error']
-                                        },
-                                        battery: {
-                                            type: 'integer',
-                                            description: 'Battery level as percentage (if applicable)'
-                                        },
-                                        mode: {
-                                            type: 'string',
-                                            description: 'Current operating mode'
-                                        }
-                                    }
+                                code: {
+                                    type: 'integer',
+                                    description: 'Status code'
+                                },
+                                description: {
+                                    type: 'string',
+                                    description: 'Status description'
                                 }
                             }
+                        },
+                        lrcValid: {
+                            type: 'boolean',
+                            description: 'Whether the checksum is valid'
                         }
-                    ]
+                    }
+                },
+                TareResponse: {
+                    type: 'object',
+                    properties: {
+                        type: {
+                            type: 'string',
+                            enum: ['tare'],
+                            description: 'Response type'
+                        },
+                        message: {
+                            type: 'string',
+                            description: 'Operation result message'
+                        },
+                        success: {
+                            type: 'boolean',
+                            description: 'Whether the tare operation was successful'
+                        },
+                        lrcValid: {
+                            type: 'boolean',
+                            description: 'Whether the checksum is valid'
+                        }
+                    }
+                },
+                PresetTareResponse: {
+                    type: 'object',
+                    properties: {
+                        type: {
+                            type: 'string',
+                            enum: ['presetTare', 'clearPreset'],
+                            description: 'Response type'
+                        },
+                        message: {
+                            type: 'string',
+                            description: 'Operation result message'
+                        },
+                        success: {
+                            type: 'boolean',
+                            description: 'Whether the operation was successful'
+                        },
+                        lrcValid: {
+                            type: 'boolean',
+                            description: 'Whether the checksum is valid'
+                        }
+                    }
                 }
             }
         },
@@ -356,7 +455,7 @@ const swaggerSpec = swaggerJsdoc(options);
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Response'
+ *               $ref: '#/components/schemas/TareResponse'
  *       404:
  *         description: Device with specified IP not found
  *         content:
@@ -420,7 +519,7 @@ const swaggerSpec = swaggerJsdoc(options);
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Response'
+ *               $ref: '#/components/schemas/PresetTareResponse'
  *       404:
  *         description: Device with specified IP not found
  *         content:
@@ -459,150 +558,13 @@ const swaggerSpec = swaggerJsdoc(options);
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Response'
+ *               $ref: '#/components/schemas/PresetTareResponse'
  *       404:
  *         description: Device with specified IP not found
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
- *       400:
- *         description: Invalid request or device error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *
- * /weight:
- *   get:
- *     summary: Get weight reading (Legacy)
- *     description: Get the current weight reading from a scale device
- *     tags: [Scale Operations]
- *     parameters:
- *       - in: query
- *         name: deviceId
- *         schema:
- *           type: integer
- *         required: false
- *         description: ID of the device to query (defaults to 1 if not specified)
- *     responses:
- *       200:
- *         description: Weight reading
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/WeightResponse'
- *       400:
- *         description: Invalid request or device error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *
- * /tare:
- *   get:
- *     summary: Tare the scale (Legacy)
- *     description: Reset the scale to zero at the current weight
- *     tags: [Scale Operations]
- *     parameters:
- *       - in: query
- *         name: deviceId
- *         schema:
- *           type: integer
- *         required: false
- *         description: ID of the device to tare (defaults to 1 if not specified)
- *     responses:
- *       200:
- *         description: Tare operation response
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Response'
- *       400:
- *         description: Invalid request or device error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *
- * /status:
- *   get:
- *     summary: Get device status (Legacy)
- *     description: Retrieve the current status of a device
- *     tags: [Scale Operations]
- *     parameters:
- *       - in: query
- *         name: deviceId
- *         schema:
- *           type: integer
- *         required: false
- *         description: ID of the device to query (defaults to 1 if not specified)
- *     responses:
- *       200:
- *         description: Device status
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/StatusResponse'
- *       400:
- *         description: Invalid request or device error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *
- * /clearPreset:
- *   get:
- *     summary: Clear preset tare (Legacy)
- *     description: Clear any preset tare value on the scale
- *     tags: [Scale Operations]
- *     parameters:
- *       - in: query
- *         name: deviceId
- *         schema:
- *           type: integer
- *         required: false
- *         description: ID of the device to clear (defaults to 1 if not specified)
- *     responses:
- *       200:
- *         description: Clear preset tare operation response
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Response'
- *       400:
- *         description: Invalid request or device error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *
- * /presetTare:
- *   get:
- *     summary: Set preset tare (Legacy)
- *     description: Set a preset tare value on the scale
- *     tags: [Scale Operations]
- *     parameters:
- *       - in: query
- *         name: value
- *         schema:
- *           type: number
- *           format: float
- *         required: true
- *         description: Tare value to set (in kg)
- *       - in: query
- *         name: deviceId
- *         schema:
- *           type: integer
- *         required: false
- *         description: ID of the device to set (defaults to 1 if not specified)
- *     responses:
- *       200:
- *         description: Set preset tare operation response
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Response'
  *       400:
  *         description: Invalid request or device error
  *         content:
