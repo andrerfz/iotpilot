@@ -18,9 +18,21 @@ const options = {
         },
         servers: [
             {
-                url: 'http://localhost:4000',
+                url: 'http://iotpilot.test:4080',
                 description: 'Development server'
-            }
+            },
+            {
+                url: 'https://iotpilot.test:4443',
+                description: 'Development server TLS'
+            },
+            {
+                url: 'http://iotpilot.local',
+                description: 'Production server'
+            },
+            {
+                url: 'https://iotpilot.local',
+                description: 'Production server TLS'
+            },
         ],
         components: {
             schemas: {
