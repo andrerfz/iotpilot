@@ -1,0 +1,16 @@
+IotPilot Build Information for ARM64
+===================================
+Date: Tue May 20 18:29:26 CEST 2025
+Target: Raspberry Pi 3 Model B (ARM64/aarch64)
+Node.js: v16.x
+Build System: Docker on Darwin arm64
+
+This package contains pre-compiled node_modules for Raspberry Pi 3 running 64-bit OS.
+To install:
+1. Copy node_modules.tar.gz to your Raspberry Pi 3
+2. Extract with: tar -xzf node_modules.tar.gz -C /opt/iotpilot/app/
+3. Fix permissions: sudo chown -R iotpilot:iotpilot /opt/iotpilot/app/node_modules
+4. Restart service: sudo systemctl restart iotpilot
+
+Note: better-sqlite3 might have compatibility issues on ARM64. The app will prefer sqlite3
+when available.

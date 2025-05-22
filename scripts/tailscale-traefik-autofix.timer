@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Tailscale Traefik Auto-Fix every 5 minutes
+Requires=tailscale-traefik-autofix.service
+
+[Timer]
+Unit=tailscale-traefik-autofix.service
+OnBootSec=60s
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

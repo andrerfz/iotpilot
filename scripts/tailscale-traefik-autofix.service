@@ -1,0 +1,12 @@
+[Unit]
+Description=Tailscale Traefik Auto-Fix Service
+After=network.target tailscaled.service traefik.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/iotpilot/scripts/tailscale-traefik-autofix.sh
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
