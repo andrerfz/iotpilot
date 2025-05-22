@@ -6,33 +6,16 @@
 #   sudo apt install curl
 #   Basic: curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/autoinstaller-pi-zero-armv6.sh | sudo bash
 #   With Tailscale key: curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/autoinstaller-pi-zero-armv6.sh | sudo TAILSCALE_AUTH_KEY="tskey-auth-xxxx" bash
+#   With Tailscale key and custom hostname: curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/autoinstaller-pi-zero-armv6.sh | sudo TAILSCALE_HOSTNAME="custom-name" TAILSCALE_AUTH_KEY="tskey-auth-xxxx" bash
 
 set -e
 
-# Colors for better output
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
-
-# Print colored messages
-info() {
-  echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-warn() {
-  echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-error() {
-  echo -e "${RED}[ERROR]${NC} $1"
-  exit 1
-}
+# Source common functions
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+source "${SCRIPT_DIR}/common-installer-functions.sh"
 
 # Check if running as root
-if [ "$EUID" -ne 0 ]; then
-  error "Please run as root (sudo)"
-fi
+check_root
 
 # Detect Raspberry Pi model
 detect_raspberry_pi() {
@@ -62,66 +45,6 @@ detect_raspberry_pi() {
   # Export the variables so they're available to other functions
   export IS_RASPBERRY
   export IS_PI_ZERO
-}
-
-# Install system dependencies
-install_system_dependencies() {
-  info "Updating package lists..."
-  apt-get update -y || error "Failed to update package lists"
-
-  info "Installing required system packages..."
-  apt-get install -y \
-    git \
-    make \
-    curl \
-    avahi-daemon \
-    jq \
-    openssl \
-    libssl-dev \
-    libtool \
-    build-essential \
-    libsqlite3-dev \
-    xz-utils \
-    || error "Failed to install required system packages"
-}
-
-# Fix hostname resolution issues
-fix_hostname_resolution() {
-  info "Fixing hostname resolution..."
-
-  # Get current hostname
-  CURRENT_HOSTNAME=$(hostname)
-  info "Current hostname is: $CURRENT_HOSTNAME"
-
-  # Create a clean /etc/hosts file
-  cat > /etc/hosts << EOL
-127.0.0.1 localhost
-::1 localhost ip6-localhost ip6-loopback
-ff02::1 ip6-allnodes
-ff02::2 ip6-allrouters
-
-127.0.1.1 ${CURRENT_HOSTNAME}
-EOL
-
-  info "Updated hosts file with correct hostname entry"
-
-  # Configure hostname to be 'iotpilot' if it's not already
-  if [ "$CURRENT_HOSTNAME" != "iotpilot" ]; then
-    info "Setting hostname to 'iotpilot'..."
-    hostnamectl set-hostname iotpilot
-
-    # Update /etc/hosts again with new hostname
-    cat > /etc/hosts << EOL
-127.0.0.1 localhost
-::1 localhost ip6-localhost ip6-loopback
-ff02::1 ip6-allnodes
-ff02::2 ip6-allrouters
-
-127.0.1.1 iotpilot
-EOL
-
-    info "Hostname changed to 'iotpilot'"
-  fi
 }
 
 # Install Node.js appropriate for the Pi Zero (ARMv6)
@@ -164,7 +87,7 @@ install_nodejs() {
 
   # Create temp directory
   TEMP_DIR=$(mktemp -d)
-  cd "$TEMP_DIR"
+  cd "$TEMP_DIR" || return 1
 
   # For Pi Zero, use Node.js v16 which is more stable for ARMv6
   if [ "$IS_PI_ZERO" = true ]; then
@@ -191,7 +114,7 @@ install_nodejs() {
   ln -sf /usr/local/node/bin/npx /usr/local/bin/npx
 
   # Clean up
-  cd /
+  cd / || return 1
   rm -rf "$TEMP_DIR"
 
   # Verify installation
@@ -205,309 +128,15 @@ install_nodejs() {
   info "Node.js v${NODE_VERSION} installed successfully"
 }
 
-# Install Tailscale if auth key is provided
-install_tailscale() {
-  if [ -n "$TAILSCALE_AUTH_KEY" ]; then
-    info "Installing Tailscale..."
-
-    # Check if Tailscale is already installed
-    if command -v tailscale &> /dev/null; then
-      info "Tailscale is already installed"
-    else
-      # Install Tailscale
-      curl -fsSL https://tailscale.com/install.sh | sh || warn "Failed to install Tailscale"
-    fi
-
-    # Save the auth key to a file to ensure it's not truncated
-    AUTH_KEY_FILE=$(mktemp)
-    echo "$TAILSCALE_AUTH_KEY" > "$AUTH_KEY_FILE"
-    FULL_AUTH_KEY=$(cat "$AUTH_KEY_FILE")
-
-    # Start Tailscale with the provided auth key
-    info "Starting Tailscale with provided auth key..."
-    tailscale up --authkey="$FULL_AUTH_KEY" --hostname="iotpilot" || warn "Failed to authenticate Tailscale"
-
-    # Clean up the temporary file
-    rm -f "$AUTH_KEY_FILE"
-
-    # Give Tailscale a moment to establish connection
-    sleep 5
-
-    # Get the Tailscale domain
-    TAILSCALE_INFO=$(tailscale status --json)
-    TAILSCALE_DOMAIN=$(echo "$TAILSCALE_INFO" | jq -r '.MagicDNSSuffix')
-    TAILSCALE_HOSTNAME=$(hostname)
-
-    if [ -n "$TAILSCALE_DOMAIN" ] && [ "$TAILSCALE_DOMAIN" != "null" ]; then
-      TAILSCALE_FQDN="${TAILSCALE_HOSTNAME}.${TAILSCALE_DOMAIN}"
-      info "Tailscale domain: $TAILSCALE_FQDN"
-
-      # Save the Tailscale FQDN to the .env file
-      if [ -f /opt/iotpilot/.env ]; then
-        # Remove any existing TAILSCALE_DOMAIN settings
-        sed -i '/TAILSCALE_DOMAIN=/d' /opt/iotpilot/.env
-        # Add the new TAILSCALE_DOMAIN
-        echo "TAILSCALE_DOMAIN=$TAILSCALE_FQDN" >> /opt/iotpilot/.env
-        info "Added Tailscale domain to .env file"
-      fi
-    else
-      warn "Could not determine Tailscale domain"
-    fi
-  else
-    info "No Tailscale auth key provided, skipping Tailscale installation"
-  fi
-}
-
-# Configure mDNS for local hostname resolution
-setup_mdns() {
-  info "Setting up mDNS for local hostname resolution..."
-
-  # Configure Avahi
-  if [ -f /etc/avahi/avahi-daemon.conf ]; then
-    # Make sure .local is used and hostname is not changed
-    sed -i 's/#domain-name=.*/domain-name=local/' /etc/avahi/avahi-daemon.conf
-    sed -i 's/#host-name=.*/host-name=iotpilot/' /etc/avahi/avahi-daemon.conf
-    sed -i 's/#publish-hinfo=.*/publish-hinfo=yes/' /etc/avahi/avahi-daemon.conf
-    sed -i 's/#publish-addresses=.*/publish-addresses=yes/' /etc/avahi/avahi-daemon.conf
-
-    info "Configured Avahi daemon for mDNS"
-  else
-    warn "Avahi configuration file not found. Skipping mDNS configuration."
-  fi
-
-  # Restart Avahi to apply changes
-  systemctl restart avahi-daemon || warn "Failed to restart Avahi daemon"
-
-  # Verify mDNS is working
-  info "mDNS setup complete. It may take a moment for 'iotpilot.local' to become available on your network."
-}
-
-# Install Traefik as a reverse proxy
-install_traefik() {
-  info "Installing and configuring Traefik as reverse proxy..."
-
-  # Create directory for Traefik configuration
-  mkdir -p /etc/traefik/config/certs
-
-  # Generate self-signed certificates first
-  info "Generating self-signed SSL certificates..."
-  openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout /etc/traefik/config/certs/local-key.pem \
-    -out /etc/traefik/config/certs/local-cert.pem \
-    -subj "/CN=iotpilot.local/O=IoT Pilot/C=US" \
-    -addext "subjectAltName = DNS:iotpilot.local,DNS:*.iotpilot.local,IP:127.0.0.1" \
-    || warn "Certificate generation failed, continuing anyway"
-
-  # Set permissions
-  chmod 600 /etc/traefik/config/certs/local-key.pem
-  chmod 644 /etc/traefik/config/certs/local-cert.pem
-
-  # Create ACME directory
-  mkdir -p /etc/traefik/acme
-
-  # Create main Traefik configuration file
-  cat > /etc/traefik/traefik.yml << EOL
-api:
-  insecure: true  # Enable the dashboard (set to false in production)
-  dashboard: true
-
-entryPoints:
-  web:
-    address: ":80"
-  websecure:
-    address: ":443"
-    http:
-      tls:
-        domains:
-          - main: "iotpilot.local"
-            sans:
-              - "*.iotpilot.local"
-          - main: "${TAILSCALE_FQDN:-}"
-            sans:
-              - "*.${TAILSCALE_FQDN:-}"
-
-providers:
-  file:
-    directory: /etc/traefik/config/
-    watch: true
-
-certificatesResolvers:
-  letsencrypt:
-    acme:
-      email: "${ACME_EMAIL:-contact@iotpilot.local}"
-      storage: /etc/traefik/acme/acme.json
-      tlsChallenge: {}
-
-# Enable access logs
-accessLog: {}
-
-# Log level
-log:
-  level: "INFO"
-EOL
-
-  # Create local certificates configuration
-  cat > /etc/traefik/config/local.yml << EOL
-tls:
-  certificates:
-    - certFile: /etc/traefik/config/certs/local-cert.pem
-      keyFile: /etc/traefik/config/certs/local-key.pem
-  stores:
-    default:
-      defaultCertificate:
-        certFile: /etc/traefik/config/certs/local-cert.pem
-        keyFile: /etc/traefik/config/certs/local-key.pem
-EOL
-
-  # Create dynamic configuration for IotPilot service
-  cat > /etc/traefik/config/iotpilot.yml << EOL
-http:
-  routers:
-    iotpilot-http:
-      rule: "Host(\`iotpilot.local\`)"
-      entrypoints:
-        - web
-      service: iotpilot
-      priority: 100
-
-    iotpilot-https:
-      rule: "Host(\`iotpilot.local\`)"
-      entrypoints:
-        - websecure
-      service: iotpilot
-      tls: true
-      priority: 100
-EOL
-
-# Only append this router if TAILSCALE_FQDN is set
-if [ -n "$TAILSCALE_FQDN" ]; then
-  cat >> /etc/traefik/config/iotpilot.yml << EOL
-    iotpilot-tailscale:
-      rule: "Host(\`$TAILSCALE_FQDN\`)"
-      entrypoints:
-        - websecure
-      service: iotpilot
-      tls: true
-EOL
-fi
-
-# Finish with services block
-cat >> /etc/traefik/config/iotpilot.yml << EOL
-
-  services:
-    iotpilot:
-      loadBalancer:
-        servers:
-          - url: "http://127.0.0.1:4000"
-EOL
-
-  # Download Traefik binary
-  info "Downloading Traefik..."
-  TRAEFIK_VERSION="v2.10.5"
-
-  # Determine architecture
-  if [ "$(uname -m)" = "armv6l" ]; then
-    ARCH="armv6"
-  elif [ "$(uname -m)" = "armv7l" ]; then
-    ARCH="armv7"
-  else
-    # Default to armv6 for Raspberry Pi Zero
-    ARCH="armv6"
-  fi
-
-  info "Using architecture: $ARCH for Traefik download"
-  if [ -f /usr/local/bin/traefik ]; then
-    info "Traefik is already installed"
-  else
-    curl -L "https://github.com/traefik/traefik/releases/download/${TRAEFIK_VERSION}/traefik_${TRAEFIK_VERSION}_linux_${ARCH}.tar.gz" -o /tmp/traefik.tar.gz || error "Failed to download Traefik"
-    tar -xzf /tmp/traefik.tar.gz -C /tmp
-    mv /tmp/traefik /usr/local/bin/
-    chmod +x /usr/local/bin/traefik
-    rm /tmp/traefik.tar.gz
-  fi
-
-  # Create systemd service for Traefik
-  cat > /etc/systemd/system/traefik.service << EOL
-[Unit]
-Description=Traefik
-Documentation=https://docs.traefik.io
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/traefik --configfile=/etc/traefik/traefik.yml
-Restart=on-failure
-RestartSec=5
-LimitNOFILE=1048576
-
-[Install]
-WantedBy=multi-user.target
-EOL
-
-  # Start and enable Traefik service
-  systemctl daemon-reload
-  systemctl enable traefik.service
-  systemctl restart traefik.service || warn "Failed to start Traefik service"
-
-  info "Traefik configured successfully. Dashboard available at http://iotpilot.local:8080"
-}
-
-# Clone the repository and install dependencies
-setup_application() {
+# We'll define a Pi Zero specific function to handle the node_modules installation
+setup_pi_zero_node_modules() {
   local repo_dir="/opt/iotpilot"
-
-  info "Setting up IotPilot application..."
-
-  # Create application user (non-root)
-  if ! id -u iotpilot &>/dev/null; then
-    useradd -m -s /bin/bash iotpilot || warn "Failed to create iotpilot user"
-  fi
-
-  # Clone or update repository
-  if [ -d "$repo_dir" ]; then
-    info "Repository already exists, updating..."
-    cd "$repo_dir"
-
-    # First stash any local changes to avoid merge conflicts
-    git config --global --add safe.directory "$repo_dir"
-    git stash || warn "Failed to stash local changes"
-    git pull || warn "Failed to update repository"
-  else
-    # Make directory writable (in case it exists but isn't writable)
-    mkdir -p "$repo_dir" || true
-    chmod 755 "$repo_dir" || true
-
-    info "Cloning repository..."
-    git clone https://github.com/andrerfz/iotpilot.git "$repo_dir" || error "Failed to clone repository"
-    cd "$repo_dir"
-  fi
-
-  # Create data directory
-  mkdir -p "$repo_dir/app/data"
-
-  # Set up environment file
-  if [ ! -f "$repo_dir/.env" ]; then
-      cp "$repo_dir/.env.example" "$repo_dir/.env" || warn "Failed to create .env file"
-      sed -i "s/HOST_NAME=.*/HOST_NAME=iotpilot.local/" "$repo_dir/.env"
-
-      # Add Tailscale domain if available
-      if [ -n "$TAILSCALE_FQDN" ]; then
-          echo "TAILSCALE_DOMAIN=$TAILSCALE_FQDN" >> "$repo_dir/.env"
-      fi
-
-      # Add Tailscale Auth Key if provided
-      if [ -n "$TAILSCALE_AUTH_KEY" ]; then
-          echo "TAILSCALE_AUTH_KEY=$TAILSCALE_AUTH_KEY" >> "$repo_dir/.env"
-          echo "Added Tailscale Auth Key to .env file"
-      fi
-  fi
 
   # Use pre-compiled node_modules for Pi Zero (ARMv6)
   if [ "$IS_PI_ZERO" = true ]; then
     info "Using pre-compiled node_modules for Raspberry Pi Zero..."
 
-    cd "$repo_dir"
+    cd "$repo_dir" || return 1
 
     # Path to the precompiled node_modules
     NODE_MODULES_ARCHIVE="$repo_dir/packages/armv6/node_modules.tar.gz"
@@ -539,11 +168,10 @@ setup_application() {
     fi
   else
     # Regular dependency installation for non-Pi Zero devices
-    cd "$repo_dir/app"
+    cd "$repo_dir/app" || return 1
     info "Installing Node.js dependencies (this may take a while)..."
 
-    # Use the installed node and npm from our binary installation
-    NODE_BIN="/usr/local/bin/node"
+    # Use the installed npm from our binary installation
     NPM_BIN="/usr/local/bin/npm"
 
     # Tell npm to ignore engine checks for Node.js version compatibility
@@ -570,82 +198,14 @@ setup_application() {
   # Fix permissions
   chown -R iotpilot:iotpilot "$repo_dir"
   chmod -R 755 "$repo_dir"
-
-  info "Application setup completed successfully"
 }
 
-# Create systemd service for auto-start on boot
-create_systemd_service() {
-  info "Creating systemd service for IotPilot..."
-
-  # Create service file with path to our installed Node.js binary
-  # Using modern systemd logging (no syslog)
-  cat > /etc/systemd/system/iotpilot.service << EOL
-[Unit]
-Description=IotPilot IoT Device Management
-After=network.target traefik.service avahi-daemon.service
-Wants=traefik.service avahi-daemon.service
-
-[Service]
-Type=simple
-User=iotpilot
-WorkingDirectory=/opt/iotpilot/app
-ExecStart=/usr/local/bin/node server.js
-Restart=always
-RestartSec=10
-# Modern logging configuration (no syslog)
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=iotpilot
-Environment=NODE_ENV=production
-Environment=HOST_NAME=iotpilot.local
-
-[Install]
-WantedBy=multi-user.target
-EOL
-
-  # Reload systemd, enable and start the service
-  systemctl daemon-reload
-  systemctl enable iotpilot.service
-  systemctl restart iotpilot.service
-
-  info "Systemd service created and enabled"
-}
-
-# Display final information
-show_information() {
-  echo
-  echo -e "${GREEN}=============================================${NC}"
-  echo -e "${GREEN}     IotPilot Pi Zero Installation Complete   ${NC}"
-  echo -e "${GREEN}=============================================${NC}"
-  echo
-  echo "Your IotPilot instance is now running!"
-  echo
-  echo "Access your installation at:"
-  echo "  - HTTP: http://iotpilot.local"
-  echo "  - HTTPS: https://iotpilot.local"
-  echo "  - Traefik Dashboard: http://iotpilot.local:8080"
-  echo
-  echo "API documentation is available at:"
-  echo "  - http://iotpilot.local/api-docs"
-  echo
-
-  if [ -n "$TAILSCALE_FQDN" ]; then
-    echo "Tailscale access:"
-    echo "  - https://$TAILSCALE_FQDN"
-    echo
-  fi
-
-  echo "The installation directory is: /opt/iotpilot"
-  echo
-  echo "Useful commands:"
-  echo "  - systemctl status iotpilot  : Check service status"
-  echo "  - systemctl restart iotpilot : Restart the service"
-  echo "  - journalctl -u iotpilot     : View logs"
-  echo
-  echo "mDNS has been configured, so any device on your local network"
-  echo "should be able to access your server using iotpilot.local"
-  echo
+# For create_systemd_service, we need to set NODE_PATH before calling it
+set_node_path() {
+  # For Pi Zero, we know the Node.js path is at /usr/local/bin/node
+  NODE_PATH="/usr/local/bin/node"
+  info "Using Node.js from: $NODE_PATH"
+  export NODE_PATH
 }
 
 # Main installation process
@@ -668,9 +228,11 @@ main() {
   setup_mdns
   install_tailscale
   install_traefik
-  setup_application
+  setup_pi_zero_node_modules
+  set_node_path
   create_systemd_service
-  show_information
+  setup_tailscale_autofix
+  show_information "Pi Zero"
 }
 
 # Run the main installation function

@@ -56,9 +56,11 @@ For local development on your computer:
 
 ## 📱 Production Deployment (Raspberry Pi)
 
-IotPilot is optimized to run on Raspberry Pi devices, including the resource-constrained Pi Zero:
+IotPilot is optimized to run on Raspberry Pi devices with dedicated installers for different architectures:
 
-### Raspberry Pi Zero Installation
+### Raspberry Pi Zero Installation (ARM32/armv6)
+
+For Raspberry Pi Zero, Zero W, and other ARMv6-based devices:
 
 1. Ensure your Raspberry Pi Zero is running Debian Bookworm
 2. Install using the auto-installer script:
@@ -66,9 +68,12 @@ IotPilot is optimized to run on Raspberry Pi devices, including the resource-con
    ```bash
    # Basic installation
    curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/autoinstaller-pi-zero-armv6.sh | sudo bash
-   
+
    # Or with Tailscale for remote access
    curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/autoinstaller-pi-zero-armv6.sh | sudo TAILSCALE_AUTH_KEY="tskey-auth-xxxx" bash
+
+   # Or with Tailscale and custom hostname
+   curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/autoinstaller-pi-zero-armv6.sh | sudo TAILSCALE_HOSTNAME="custom-name" TAILSCALE_AUTH_KEY="tskey-auth-xxxx" bash
    ```
 
 3. Access your IotPilot instance:
@@ -76,9 +81,41 @@ IotPilot is optimized to run on Raspberry Pi devices, including the resource-con
    - API Documentation: http://iotpilot.local/api-docs
    - Via Tailscale (if configured): https://your-hostname.tailnet-name.ts.net
 
-### Other Raspberry Pi Models
+**Technical Details:**
+- Uses Node.js 16.20.2 specifically built for ARMv6 architecture
+- Pre-compiled node_modules to avoid build issues on low-memory devices
+- Optimized for the limited resources of Pi Zero (512MB RAM)
+- Includes Traefik reverse proxy configured for ARMv6
 
-The installation process is the same as for Pi Zero, but with better performance.
+### Raspberry Pi 3/4 Installation (ARM64/aarch64)
+
+For Raspberry Pi 3, Pi 4, and other ARM64-based devices:
+
+1. Ensure your Raspberry Pi is running a 64-bit OS (Debian Bookworm 64-bit recommended)
+2. Install using the ARM64-specific auto-installer script:
+
+   ```bash
+   # Basic installation
+   curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/autoinstaller-pi-3-aarch64.sh | sudo bash
+
+   # Or with Tailscale for remote access
+   curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/autoinstaller-pi-3-aarch64.sh | sudo TAILSCALE_AUTH_KEY="tskey-auth-xxxx" bash
+
+   # Or with Tailscale and custom hostname
+   curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/autoinstaller-pi-3-aarch64.sh | sudo TAILSCALE_HOSTNAME="custom-name" TAILSCALE_AUTH_KEY="tskey-auth-xxxx" bash
+   ```
+
+3. Access your IotPilot instance (same as Pi Zero):
+   - Locally: http://iotpilot.local
+   - API Documentation: http://iotpilot.local/api-docs
+   - Via Tailscale (if configured): https://your-hostname.tailnet-name.ts.net
+
+**Technical Details:**
+- Uses Node.js 16.x from the NodeSource repository optimized for ARM64
+- Pre-compiled node_modules for ARM64 architecture
+- Better performance than ARMv6 due to 64-bit architecture and more resources
+- Includes additional Tailscale auto-fix service for improved remote access
+- Traefik configured for ARM64 architecture
 
 ## 🔌 Supported Devices
 
@@ -128,6 +165,32 @@ The application consists of the following components:
 
 - **Device Control Panel**: Interface for sending commands to selected devices
 - **Device Manager Panel**: Interface for adding, editing, and removing devices
+
+### Building for Different Architectures
+
+IotPilot includes build scripts to create pre-compiled node_modules packages for different Raspberry Pi architectures:
+
+#### For Raspberry Pi Zero (ARMv6)
+
+```bash
+# From the project root
+cd docker/node
+./build-for-pi-zero.sh
+```
+
+This creates a pre-compiled package at `packages/armv6/node_modules.tar.gz` optimized for ARMv6 architecture.
+
+#### For Raspberry Pi 3/4 (ARM64/aarch64)
+
+```bash
+# From the project root
+cd docker/node
+./build-for-pi-3-arm64.sh
+```
+
+This creates a pre-compiled package at `packages/arm64v8/node_modules.tar.gz` optimized for ARM64 architecture.
+
+Both build scripts use Docker with cross-platform emulation to build the packages, so they can be run on any system with Docker installed, regardless of the host architecture.
 
 ## 🔮 Next Steps
 
