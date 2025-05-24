@@ -1,118 +1,91 @@
 DOCKER_BINARY := docker-compose -f docker/docker-compose.yml --env-file .env
 
-.PHONY: sudo-docker start stop restart build recreate dev deploy deploy-skip-certs
-	shell logs-nodejs logs-tailscale logs-traefik setup sudo-setup non-sudo-setup
-	tailscale-status tailscale-up tailscale-down generate-certs force-generate-certs
-	install-cert setup-hosts update-tailscale-domain traefik-dashboard
-	logs-prod-nodejs logs-prod-traefik logs-prod-tailscale logs-prod-avahi logs-prod-all
-	restart-prod-nodejs restart-prod-traefik restart-prod-tailscale restart-prod-all stop-prod-all status-prod
+.PHONY: help start stop restart build dev shell logs status
+.PHONY: test-device test-logs test-stop test-clean
+.PHONY: setup sudo-setup non-sudo-setup
+.PHONY: tailscale-status tailscale-up tailscale-down
+.PHONY: logs-prod-nodejs logs-prod-traefik logs-prod-tailscale logs-prod-all
+.PHONY: restart-prod-nodejs restart-prod-traefik restart-prod-tailscale restart-prod-all
+.PHONY: stop-prod-all status-prod
 
-sudo-docker:
-	@sudo chown -R $(shell whoami) ~/.docker
-	@echo "Docker permissions fixed."
+# Default target
+help:
+	@echo "IoT Pilot Commands"
+	@echo "=================="
+	@echo ""
+	@echo "🚀 Development:"
+	@echo "  start          - Start all services"
+	@echo "  stop           - Stop all services"
+	@echo "  restart        - Restart all services"
+	@echo "  build          - Build containers"
+	@echo "  dev            - Start in development mode"
+	@echo "  shell          - Open shell in main container"
+	@echo "  logs           - Show app logs"
+	@echo "  status         - Show service status"
+	@echo ""
+	@echo "🧪 Test Device:"
+	@echo "  test-device    - Start test IoT device"
+	@echo "  test-logs      - Show test device logs"
+	@echo "  test-stop      - Stop test device"
+	@echo "  test-clean     - Clean test resources"
+	@echo ""
+	@echo "🏭 Production (Raspberry Pi):"
+	@echo "  logs-prod-nodejs     - Show Node.js logs"
+	@echo "  logs-prod-traefik    - Show Traefik logs"
+	@echo "  logs-prod-tailscale  - Show Tailscale logs"
+	@echo "  logs-prod-all        - Show all service logs"
+	@echo "  restart-prod-nodejs  - Restart Node.js service"
+	@echo "  restart-prod-traefik - Restart Traefik service"
+	@echo "  restart-prod-tailscale - Restart Tailscale service"
+	@echo "  restart-prod-all     - Restart all services"
+	@echo "  stop-prod-all        - Stop all services"
+	@echo "  status-prod          - Show production status"
+	@echo ""
+	@echo "🔧 Setup:"
+	@echo "  setup          - Setup certificates and hosts"
+	@echo "  tailscale-status - Show Tailscale status"
 
+# Development commands
 start:
 	@$(DOCKER_BINARY) up -d --remove-orphans
 
 stop:
 	@$(DOCKER_BINARY) down --remove-orphans
 
+restart: stop start
+
 build:
 	@$(DOCKER_BINARY) build --no-cache
 
-recreate:
-	@make stop
-	@$(DOCKER_BINARY) up -d --remove-orphans --no-deps --build
-
-restart: stop start
-
-sudo-setup: install-cert setup-hosts
-	@echo "Sudo operations completed successfully."
-
-non-sudo-setup: generate-certs update-tailscale-domain
-	@echo "Non-sudo operations completed successfully."
-
-setup:
-	@echo "Running setup operations that require sudo..."
-	@make sudo-setup
-	@echo "Running setup operations that don't require sudo..."
-	@make non-sudo-setup
-	@echo "Setup complete! Your system is now configured for IoT Pilot."
-
 dev: stop
-	@make tailscale-down
-	@make setup
 	@$(DOCKER_BINARY) up
-	@make tailscale-up
-
-deploy-app: build start tailscale-up
-	@echo "Application deployed successfully."
-
-deploy:
-	@make stop
-	@echo "Running setup operations that require sudo..."
-	@make sudo-setup
-	@echo "Running setup operations that don't require sudo..."
-	@make non-sudo-setup
-	@echo "Deploying application..."
-	@make deploy-app
-
-deploy-skip-certs:
-	@make build
-	@make start
-	@make tailscale-up
 
 shell:
 	@$(DOCKER_BINARY) exec iotpilot bash
 
-logs-nodejs:
+logs:
 	@$(DOCKER_BINARY) logs -f iotpilot
 
-logs-tailscale:
-	@$(DOCKER_BINARY) logs -f tailscale
+status:
+	@$(DOCKER_BINARY) ps
 
-logs-traefik:
-	@$(DOCKER_BINARY) logs -f traefik
+# Test device commands
+test-device:
+	@echo "🧪 Starting test IoT device..."
+	@$(DOCKER_BINARY) --profile test up -d test-device
+	@echo "✅ Test device started!"
+	@echo "📋 Monitor: make test-logs"
 
-# Tailscale specific commands
-tailscale-status:
-	@$(DOCKER_BINARY) exec tailscale tailscale status
+test-logs:
+	@$(DOCKER_BINARY) logs -f test-device
 
-tailscale-up:
-	@$(DOCKER_BINARY) exec tailscale tailscale up
+test-stop:
+	@$(DOCKER_BINARY) stop test-device 2>/dev/null || true
+	@$(DOCKER_BINARY) rm -f test-device 2>/dev/null || true
 
-tailscale-down:
-	@$(DOCKER_BINARY) exec tailscale tailscale down
-
-# Certificate and DNS commands
-generate-certs:
-	@bash docker/traefik/generate-certs.sh
-
-force-generate-certs:
-	@bash docker/traefik/generate-certs.sh --force
-
-install-cert:
-	@bash docker/traefik/install-cert.sh
-
-setup-hosts:
-	@HOST_NAME=$$(grep HOST_NAME .env | cut -d '=' -f2 | tr -d '"' | tr -d "'"); \
-	if [ -z "$$HOST_NAME" ]; then HOST_NAME="iotpilot.test"; fi; \
-	echo "Setting up local DNS for $$HOST_NAME"; \
-	if grep -q "$$HOST_NAME" /etc/hosts; then \
-		echo "Hostname $$HOST_NAME already exists in /etc/hosts"; \
-	else \
-		echo "127.0.0.1 $$HOST_NAME" >> /etc/hosts; \
-		echo "Added $$HOST_NAME to your hosts file"; \
-	fi
-
-update-tailscale-domain:
-	@bash docker/scripts/update-tailscale-domain.sh
-
-traefik-dashboard:
-	@HOST_NAME=$$(grep HOST_NAME .env | cut -d '=' -f2 | tr -d '"' | tr -d "'"); \
-	if [ -z "$$HOST_NAME" ]; then HOST_NAME="iotpilot.test"; fi; \
-	echo "Traefik dashboard available at: http://$$HOST_NAME:8080"
-
+test-clean: test-stop
+	@docker volume prune -f || true
+	@echo "✅ Test cleanup complete!"
 
 # Production service log commands
 logs-prod-nodejs:
@@ -130,11 +103,6 @@ logs-prod-tailscale:
 	@echo "===== LAST 50 LOG LINES ====="
 	@journalctl -u tailscaled -n 50 --no-pager
 
-logs-prod-avahi:
-	@systemctl status avahi-daemon
-	@echo "===== LAST 50 LOG LINES ====="
-	@journalctl -u avahi-daemon -n 50 --no-pager
-
 logs-prod-all:
 	@echo "===== NODE.JS LOGS ====="
 	@journalctl -u iotpilot -n 50 --no-pager
@@ -142,8 +110,6 @@ logs-prod-all:
 	@journalctl -u traefik -n 50 --no-pager
 	@echo "===== TAILSCALE LOGS ====="
 	@journalctl -u tailscaled -n 50 --no-pager
-	@echo "===== AVAHI LOGS ====="
-	@journalctl -u avahi-daemon -n 50 --no-pager
 
 # Production service management commands
 restart-prod-nodejs:
@@ -156,7 +122,7 @@ restart-prod-traefik:
 
 restart-prod-tailscale:
 	@systemctl restart tailscaled
-	@echo "Tailscal service restarted"
+	@echo "Tailscale service restarted"
 
 restart-prod-all:
 	@systemctl restart traefik
@@ -168,11 +134,36 @@ stop-prod-all:
 	@systemctl stop traefik
 	@systemctl stop iotpilot
 	@systemctl stop tailscaled
-	@echo "All services stoped"
+	@echo "All services stopped"
 
 status-prod:
 	@echo "===== SERVICE STATUS ====="
 	@systemctl status traefik --no-pager
 	@systemctl status iotpilot --no-pager
 	@systemctl status tailscaled --no-pager
-	@systemctl status avahi-daemon --no-pager
+
+# Setup commands
+setup: sudo-setup non-sudo-setup
+
+sudo-setup:
+	@bash docker/traefik/install-cert.sh
+	@HOST_NAME=$$(grep HOST_NAME .env | cut -d '=' -f2 | tr -d '"' | tr -d "'"); \
+	if [ -z "$$HOST_NAME" ]; then HOST_NAME="iotpilot.test"; fi; \
+	if ! grep -q "$$HOST_NAME" /etc/hosts; then \
+		echo "127.0.0.1 $$HOST_NAME" >> /etc/hosts; \
+		echo "Added $$HOST_NAME to /etc/hosts"; \
+	fi
+
+non-sudo-setup:
+	@bash docker/traefik/generate-certs.sh
+	@bash docker/scripts/update-tailscale-domain.sh
+
+# Tailscale commands
+tailscale-status:
+	@$(DOCKER_BINARY) exec tailscale tailscale status
+
+tailscale-up:
+	@$(DOCKER_BINARY) exec tailscale tailscale up
+
+tailscale-down:
+	@$(DOCKER_BINARY) exec tailscale tailscale down

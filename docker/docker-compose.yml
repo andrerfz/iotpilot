@@ -7,19 +7,20 @@ services:
       dockerfile: docker/node/Dockerfile
     container_name: iotpilot-app
     ports:
-      - "4000"  # Para acceso directo al servidor Node.js
+      - "4000"
     volumes:
-      - ../app:/app  # This maps your local app directory to the container
-      - iotpilot_data:/app/data  # Persistent volume for database
-      - /app/node_modules  # Anonymous volume for node_modules
+      - ../app:/app
+      - iotpilot_data:/app/data
+      - /app/node_modules
     environment:
       - NODE_ENV=production
       - CHOKIDAR_USEPOLLING=true
-      - HOST_NAME=${HOST_NAME:-iotpilot.test}  # Make hostname available to the app
+      - HOST_NAME=${HOST_NAME:-iotpilot.test}
     restart: unless-stopped
     command: bash -c "npm install && npm run dev"
     networks:
       - iotpilot_network
+      - iotpilot-network
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.iotpilot-http.rule=Host(`${HOST_NAME:-iotpilot.test}`)"
@@ -27,25 +28,41 @@ services:
       - "traefik.http.routers.iotpilot-https.rule=Host(`${HOST_NAME:-iotpilot.test}`)"
       - "traefik.http.routers.iotpilot-https.entrypoints=websecure"
       - "traefik.http.routers.iotpilot-https.tls=true"
-      # Tailscale domain router (only created if TAILSCALE_DOMAIN is set)
       - "traefik.http.routers.iotpilot-tailscale.rule=Host(`${TAILSCALE_DOMAIN:-no-tailscale-domain}`)"
       - "traefik.http.routers.iotpilot-tailscale.entrypoints=websecure"
       - "traefik.http.routers.iotpilot-tailscale.tls=true"
-      # Common configuration
       - "traefik.http.services.iotpilot.loadbalancer.server.port=4000"
+
+  # Test IoT Device - Connect to iotpilotserver (not iotpilot-app)
+  test-device:
+    image: ubuntu:22.04
+    container_name: iotpilot-test-device
+    networks:
+      - iotpilot-network  # Connect to iotpilot-server-app network
+    environment:
+      - IOTPILOT_SERVER=${IOTPILOT_SERVER:-iotpilot-server-app:3000}
+      - DEVICE_API_KEY=${DEVICE_API_KEY}
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - DEVICE_LOCATION=${DEVICE_LOCATION:-docker-test-lab}
+    restart: "no"
+    volumes:
+      - ./scripts/test-device-startup.sh:/startup.sh:ro
+    command: bash /startup.sh
+    profiles:
+      - test
 
   traefik:
     image: traefik:v2.10
     container_name: iotpilot-traefik
     ports:
-      - "4080:80"      # Map HTTP port explicitly to 4080
-      - "8080:8080"    # Traefik Dashboard
-      - "4443:443"     # Map HTTPS port explicitly to 4443
+      - "4080:80"
+      - "8080:8080"
+      - "4443:443"
     volumes:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/config:/etc/traefik/config:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro  # To monitor containers
-      - traefik_certs:/etc/traefik/acme  # For storing certificates
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_certs:/etc/traefik/acme
     networks:
       - iotpilot_network
     restart: unless-stopped
@@ -60,7 +77,6 @@ services:
     volumes:
       - tailscale_state:/var/lib/tailscale
       - /dev/net/tun:/dev/net/tun
-    # Esto comparte la red con el contenedor de Traefik para acceder a sus servicios
     network_mode: "service:traefik"
     cap_add:
       - NET_ADMIN
@@ -70,7 +86,6 @@ services:
       - TS_EXTRA_ARGS=--advertise-tags=tag:container
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_USERSPACE=false
-      # Parámetros básicos sin anunciar rutas ni exit nodes
       - TS_EXTRA_ARGS=--hostname=${HOST_NAME:-iotpilot.test} --reset
     restart: unless-stopped
 
@@ -85,3 +100,6 @@ volumes:
 networks:
   iotpilot_network:
     driver: bridge
+    external: false
+  iotpilot-network:
+    external: true
