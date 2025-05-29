@@ -11,8 +11,8 @@
 set -e
 
 # Source common functions
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-source "${SCRIPT_DIR}/common-installer-functions.sh"
+curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/common-installer-functions.sh > /tmp/common-installer-functions.sh
+source /tmp/common-installer-functions.sh
 
 # Check if running as root
 check_root
