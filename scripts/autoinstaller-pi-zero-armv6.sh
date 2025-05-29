@@ -228,6 +228,7 @@ main() {
   setup_mdns
   install_tailscale
   install_traefik
+  setup_application
   setup_pi_zero_node_modules
   set_node_path
   create_systemd_service
