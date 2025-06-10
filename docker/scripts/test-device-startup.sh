@@ -11,9 +11,26 @@ apt-get update -qq >/dev/null 2>&1
 apt-get install -y curl jq sudo systemd cron >/dev/null 2>&1
 echo "✅ System packages installed"
 
+# Use fixed device ID from environment or generate fallback
+if [ -z "$DEVICE_ID" ]; then
+    # Generate device ID if not provided (fallback)
+    if [ -f /.dockerenv ]; then
+        # In Docker container - use container hostname
+        DEVICE_ID="test-device-$(hostname)"
+    else
+        # Not in Docker
+        DEVICE_ID="test-device-$(hostname)"
+    fi
+fi
+
+# Use environment variables or defaults
+DEVICE_NAME="${DEVICE_NAME:-$DEVICE_ID}"
+
 # Display configuration
 echo ""
 echo "📋 Configuration:"
+echo "  DEVICE_ID: ${DEVICE_ID}"
+echo "  DEVICE_NAME: ${DEVICE_NAME}"
 echo "  IOTPILOT_SERVER: ${IOTPILOT_SERVER}"
 echo "  DEVICE_API_KEY: ${DEVICE_API_KEY:0:8}..."
 echo "  DEVICE_LOCATION: ${DEVICE_LOCATION}"
@@ -37,10 +54,12 @@ fi
 
 echo ""
 echo "🎯 Using server: $FOUND_SERVER"
+echo "📱 Device will register as: $DEVICE_ID"
 
 # Export environment variables for the GitHub script
 export IOTPILOT_SERVER="iotpilot-server-app:3000"  # Internal HTTP
-export DEVICE_NAME="test-device-docker"
+export DEVICE_ID  # Pass the fixed device ID
+export DEVICE_NAME
 
 echo "⬇️  Downloading IoT agent installation script..."
 echo "   URL: https://raw.githubusercontent.com/andrerfz/iotpilotserver/main/scripts/device-agent-quick-test-local.sh"
@@ -50,9 +69,9 @@ if curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilotserver/main/scri
     echo ""
     echo "✅ IoT Agent installation completed successfully!"
     echo ""
-    echo "📱 Device should now appear in dashboard: $FOUND_SERVER"
+    echo "📱 Device registered as: $DEVICE_ID"
+    echo "📊 Dashboard: $FOUND_SERVER"
     echo "🔄 Agent will send heartbeats every 2 minutes"
-    echo "📊 Monitoring server: $FOUND_SERVER"
     echo ""
     echo "📋 Useful commands:"
     echo "   View agent logs: tail -f /var/log/heartbeat.log"
@@ -73,6 +92,7 @@ else
     echo "💡 Server was accessible but installation failed"
     echo ""
     echo "🔍 Debug information:"
+    echo "   Device ID: $DEVICE_ID"
     echo "   Server URL: $FOUND_SERVER"
     echo "   API Key: ${DEVICE_API_KEY:0:8}..."
     echo "   Location: $DEVICE_LOCATION"

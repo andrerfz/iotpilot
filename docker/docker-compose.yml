@@ -37,13 +37,16 @@ services:
   test-device:
     image: ubuntu:22.04
     container_name: iotpilot-test-device
+    hostname: test-device-docker
     networks:
-      - iotpilot-network  # Connect to iotpilot-server-app network
+      - iotpilot-network
     environment:
       - IOTPILOT_SERVER=${IOTPILOT_SERVER:-iotpilot-server-app:3000}
       - DEVICE_API_KEY=${DEVICE_API_KEY}
       - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
       - DEVICE_LOCATION=${DEVICE_LOCATION:-docker-test-lab}
+      - DEVICE_ID=${DEVICE_ID:-test-device-docker}
+      - DEVICE_NAME=${DEVICE_NAME:-test-device-docker}
     restart: "no"
     volumes:
       - ./scripts/test-device-startup.sh:/startup.sh:ro
