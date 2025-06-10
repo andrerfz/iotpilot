@@ -15,7 +15,7 @@ if ! apt-get update -qq; then
 fi
 
 echo "  Installing packages: curl jq cron..."
-if ! apt-get install -y curl jq cron --no-install-recommends; then
+if ! apt-get install -y curl jq cron ca-certificates --no-install-recommends; then
     echo "❌ Failed to install packages"
     exit 1
 fi
