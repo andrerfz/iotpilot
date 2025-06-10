@@ -64,8 +64,21 @@ export DEVICE_NAME
 echo "⬇️  Downloading IoT agent installation script..."
 echo "   URL: https://raw.githubusercontent.com/andrerfz/iotpilotserver/main/scripts/device-agent-quick-test-local.sh"
 
-# Execute the installation script with proper environment
-if curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilotserver/main/scripts/device-agent-quick-test-local.sh | bash; then
+# Execute the installation script with proper environment and parameters
+echo "⬇️  Downloading and executing IoT agent installation script..."
+echo "   URL: https://raw.githubusercontent.com/andrerfz/iotpilotserver/main/scripts/device-agent-quick-test-local.sh"
+echo "   Device ID: $DEVICE_ID"
+echo "   Device Name: $DEVICE_NAME"
+
+# Execute with environment variables and parameters
+if curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilotserver/main/scripts/device-agent-quick-test-local.sh | \
+   DEVICE_ID="$DEVICE_ID" \
+   DEVICE_NAME="$DEVICE_NAME" \
+   IOTPILOT_SERVER="$IOTPILOT_SERVER" \
+   DEVICE_API_KEY="$DEVICE_API_KEY" \
+   INFLUXDB_TOKEN="$INFLUXDB_TOKEN" \
+   DEVICE_LOCATION="$DEVICE_LOCATION" \
+   bash; then
     echo ""
     echo "✅ IoT Agent installation completed successfully!"
     echo ""
