@@ -7,8 +7,19 @@ echo "=========================="
 # Install required packages
 echo "📦 Installing system packages..."
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq >/dev/null 2>&1
-apt-get install -y curl jq sudo systemd cron >/dev/null 2>&1
+
+echo "  Updating package lists..."
+if ! apt-get update -qq; then
+    echo "❌ Failed to update package lists"
+    exit 1
+fi
+
+echo "  Installing packages: curl jq cron..."
+if ! apt-get install -y curl jq cron --no-install-recommends; then
+    echo "❌ Failed to install packages"
+    exit 1
+fi
+
 echo "✅ System packages installed"
 
 # Use fixed device ID from environment or generate fallback
