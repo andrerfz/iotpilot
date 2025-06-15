@@ -182,7 +182,7 @@ if "$TEMP_SCRIPT"; then
 
                 # Check for recent successful heartbeats
                 if [ -f /var/log/enhanced-heartbeat.log ]; then
-                    recent_success=$(tail -10 /var/log/enhanced-heartbeat.log | grep -c "✅.*successful" || echo "0")
+                    recent_success=$(tail -10 /var/log/enhanced-heartbeat.log | grep -c "✅.*successful" 2>/dev/null || echo "0")
                     if [ "$recent_success" -gt 0 ]; then
                         echo "$(date): ✅ Recent successful heartbeats detected"
                     fi
