@@ -36,16 +36,19 @@ fi
 
 # Use environment variables or defaults
 DEVICE_NAME="${DEVICE_NAME:-$DEVICE_ID}"
-SERVER_URL="http://iotpilot-server-app:3000"
 
 # Export environment variables for the enhanced script
 export DEVICE_ID
 export DEVICE_NAME
 export DEVICE_LOCATION="${DEVICE_LOCATION:-docker-test-lab}"
-export SERVER_URL
 export DEVICE_API_KEY
-export IOTPILOT_SERVER="iotpilot-server-app:3000"  # Internal HTTP
 export INFLUXDB_TOKEN
+
+# Set IOTPILOT_SERVER as primary (enhanced script will construct SERVER_URL from this)
+export IOTPILOT_SERVER="${IOTPILOT_SERVER:-iotpilot-server-app:3000}"
+
+# Construct SERVER_URL for local connectivity testing
+SERVER_URL="http://${IOTPILOT_SERVER}"
 
 # Display configuration
 echo ""
@@ -99,6 +102,9 @@ if curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilotserver/main/scri
         echo "✅ Enhanced IoT Agent installation completed successfully!"
         echo ""
 
+        # Wait a moment for services to be ready
+        sleep 2
+
         # Test the enhanced heartbeat to confirm it's working
         if /usr/local/bin/enhanced-heartbeat.sh >/dev/null 2>&1; then
             echo "✅ Enhanced heartbeat test successful!"
@@ -107,6 +113,7 @@ if curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilotserver/main/scri
             exit 0
         else
             echo "⚠️  Enhanced heartbeat test had issues, but monitoring is active"
+            echo "📋 Manual test available: /usr/local/bin/enhanced-heartbeat.sh"
             exit 0
         fi
     else
@@ -130,6 +137,8 @@ chmod +x "$TEMP_SCRIPT"
 # Execute the enhanced wrapper
 if "$TEMP_SCRIPT"; then
     echo ""
+    echo "✅ IoT Agent installation completed successfully!"
+    echo ""
     echo "📱 Device registered as: $DEVICE_ID"
     echo "📊 Dashboard: $FOUND_SERVER"
     echo "🔄 Agent will send heartbeats every 2 minutes"
@@ -140,6 +149,12 @@ if "$TEMP_SCRIPT"; then
         echo "   Enhanced monitor: /usr/local/bin/enhanced-monitor.sh"
         echo "   Enhanced diagnostics: /usr/local/bin/enhanced-diagnostics.sh"
         echo "   View enhanced logs: tail -f /var/log/enhanced-heartbeat.log"
+        echo ""
+        echo "🚀 Enhanced Features Active:"
+        echo "   • 40+ comprehensive metrics vs basic 6"
+        echo "   • CPU, Memory, Disk, Network, Temperature monitoring"
+        echo "   • Hardware-specific optimizations"
+        echo "   • Real-time analytics every 2 minutes"
     else
         echo "   View agent logs: tail -f /var/log/heartbeat.log"
         echo "   View registration: cat /tmp/registration_response.json"
@@ -164,6 +179,14 @@ if "$TEMP_SCRIPT"; then
             if [ -f /usr/local/bin/enhanced-heartbeat.sh ]; then
                 cron_status=$(pgrep cron > /dev/null && echo "ACTIVE" || echo "STOPPED")
                 echo "$(date): 🚀 Enhanced monitoring active | Cron: $cron_status"
+
+                # Check for recent successful heartbeats
+                if [ -f /var/log/enhanced-heartbeat.log ]; then
+                    recent_success=$(tail -10 /var/log/enhanced-heartbeat.log | grep -c "✅.*successful" || echo "0")
+                    if [ "$recent_success" -gt 0 ]; then
+                        echo "$(date): ✅ Recent successful heartbeats detected"
+                    fi
+                fi
             else
                 echo "$(date): 📊 Standard monitoring active"
             fi
