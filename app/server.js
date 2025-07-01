@@ -15,6 +15,7 @@ const scaleCommands = require('./scaleCommands');
 
 // Get hostname from environment
 const HOST_NAME = process.env.HOST_NAME || 'localhost';
+const NODE_ENV = process.env.NODE_ENV || "development";
 
 // CORS middleware to allow API access from other domains when needed
 app.use((req, res, next) => {
@@ -224,13 +225,15 @@ app.get('/api/devices/:ip/presetTare', async (req, res) => {
 // Bind to all interfaces (0.0.0.0) instead of just the hostname
 app.listen(HTTP_PORT, '0.0.0.0', () => {
 
-    console.info(`For developtment server is :`);
-    console.log(`Access the server securely via https://${HOST_NAME}:4443`);
-    console.log(`Access the server insecurely via http://${HOST_NAME}:4080`);
-    console.log(`API documentation available at http://${HOST_NAME}:4080/api-docs`);
-
-    console.info('For production server:');
-    console.log(`Access the server securely via https://${HOST_NAME}`);
-    console.log(`Access the server insecurely via http://${HOST_NAME}`);
-    console.log(`API documentation available at http://${HOST_NAME}/api-docs`);
+    if (NODE_ENV === "development") {
+        console.info(`For developtment server is :`);
+        console.log(`Access the server securely via https://${HOST_NAME}:4443`);
+        console.log(`Access the server insecurely via http://${HOST_NAME}:4080`);
+        console.log(`API documentation available at http://${HOST_NAME}:4080/api-docs`);
+    } else {
+        console.info('For production server:');
+        console.log(`Access the server securely via https://${HOST_NAME}`);
+        console.log(`Access the server insecurely via http://${HOST_NAME}`);
+        console.log(`API documentation available at http://${HOST_NAME}/api-docs`);
+    }
 });

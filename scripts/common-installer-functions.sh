@@ -188,24 +188,135 @@ setup_tailscale_autofix() {
 setup_mdns() {
   info "Setting up mDNS for local hostname resolution..."
 
-  # Configure Avahi
-  if [ -f /etc/avahi/avahi-daemon.conf ]; then
-    # Make sure .local is used and hostname is not changed
-    sed -i 's/#domain-name=.*/domain-name=local/' /etc/avahi/avahi-daemon.conf
-    sed -i 's/#host-name=.*/host-name=iotpilot/' /etc/avahi/avahi-daemon.conf
-    sed -i 's/#publish-hinfo=.*/publish-hinfo=yes/' /etc/avahi/avahi-daemon.conf
-    sed -i 's/#publish-addresses=.*/publish-addresses=yes/' /etc/avahi/avahi-daemon.conf
+  # 1. Check if systemd-resolved is running and conflicts with Avahi
+  if systemctl is-active systemd-resolved >/dev/null 2>&1; then
+    warn "systemd-resolved is running, which may conflict with Avahi"
+    info "Configuring systemd-resolved to work with Avahi..."
 
-    info "Configured Avahi daemon for mDNS"
-  else
-    warn "Avahi configuration file not found. Skipping mDNS configuration."
+    # Configure systemd-resolved to not handle .local domains
+    mkdir -p /etc/systemd/resolved.conf.d
+    cat > /etc/systemd/resolved.conf.d/avahi.conf << 'EOF'
+[Resolve]
+MulticastDNS=no
+LLMNR=no
+EOF
+    systemctl restart systemd-resolved || warn "Failed to restart systemd-resolved"
   fi
 
-  # Restart Avahi to apply changes
+  # 2. Install required packages if not present
+  info "Ensuring mDNS packages are installed..."
+  if ! dpkg -l | grep -q libnss-mdns; then
+    apt-get update -qq
+    apt-get install -y libnss-mdns avahi-utils || warn "Failed to install mDNS packages"
+  fi
+
+  # 3. Configure Avahi (more conservative approach)
+  if [ -f /etc/avahi/avahi-daemon.conf ]; then
+    info "Configuring Avahi daemon..."
+
+    # Backup original config
+    cp /etc/avahi/avahi-daemon.conf /etc/avahi/avahi-daemon.conf.backup 2>/dev/null || true
+
+    # Apply key settings without overwriting entire file
+    sed -i 's/#host-name=.*/host-name=iotpilot/' /etc/avahi/avahi-daemon.conf
+    sed -i 's/#domain-name=.*/domain-name=local/' /etc/avahi/avahi-daemon.conf
+    sed -i 's/#publish-addresses=.*/publish-addresses=yes/' /etc/avahi/avahi-daemon.conf
+    sed -i 's/#publish-hinfo=.*/publish-hinfo=yes/' /etc/avahi/avahi-daemon.conf
+    sed -i 's/#publish-workstation=.*/publish-workstation=yes/' /etc/avahi/avahi-daemon.conf
+    sed -i 's/#use-ipv6=.*/use-ipv6=no/' /etc/avahi/avahi-daemon.conf
+
+    # Only deny Docker interfaces if they exist
+    if ip link show | grep -q docker; then
+      sed -i 's/#deny-interfaces=.*/deny-interfaces=docker0,br-*,veth*/' /etc/avahi/avahi-daemon.conf
+    fi
+
+    info "Applied Avahi configuration changes"
+  else
+    warn "Avahi configuration file not found, using defaults"
+  fi
+
+  # 4. Fix /etc/nsswitch.conf for proper resolution order (safely)
+  info "Configuring name resolution order..."
+  if [ -f /etc/nsswitch.conf ]; then
+    cp /etc/nsswitch.conf /etc/nsswitch.conf.backup
+    if grep -q "hosts:" /etc/nsswitch.conf; then
+      # Only modify if mdns4_minimal isn't already there
+      if ! grep "hosts:" /etc/nsswitch.conf | grep -q mdns4_minimal; then
+        sed -i 's/hosts:.*/hosts:          files mdns4_minimal [NOTFOUND=return] dns/' /etc/nsswitch.conf
+        info "Updated nsswitch.conf for mDNS resolution"
+      fi
+    fi
+  fi
+
+  # 5. Clean hostname setup (safer approach)
+  info "Ensuring clean hostname configuration..."
+  CURRENT_HOSTNAME=$(hostname)
+
+  if [ "$CURRENT_HOSTNAME" != "iotpilot" ]; then
+    info "Setting hostname to iotpilot..."
+    hostnamectl set-hostname iotpilot
+
+    # Update /etc/hosts carefully
+    if [ -f /etc/hosts ]; then
+      cp /etc/hosts /etc/hosts.backup
+      # Remove old hostname entries, keep localhost
+      sed -i "/127.0.1.1.*${CURRENT_HOSTNAME}/d" /etc/hosts
+
+      # Add iotpilot if not already present
+      if ! grep -q "127.0.1.1.*iotpilot" /etc/hosts; then
+        echo "127.0.1.1 iotpilot" >> /etc/hosts
+      fi
+    fi
+  fi
+
+  # 6. Restart Avahi and verify
+  info "Restarting Avahi daemon..."
   systemctl restart avahi-daemon || warn "Failed to restart Avahi daemon"
 
-  # Verify mDNS is working
-  info "mDNS setup complete. It may take a moment for 'iotpilot.local' to become available on your network."
+  # Wait for Avahi to stabilize
+  sleep 3
+
+  # 7. Simple verification
+  info "Verifying mDNS setup..."
+  if command -v avahi-resolve >/dev/null 2>&1; then
+    if timeout 5 avahi-resolve -n iotpilot.local >/dev/null 2>&1; then
+      info "✓ mDNS resolution working"
+    else
+      warn "✗ mDNS resolution test failed - may take time to propagate"
+    fi
+  fi
+
+  # 8. Create simple IP change monitor (optional, safer)
+  info "Setting up IP change monitoring..."
+  cat > /usr/local/bin/iotpilot-mdns-refresh.sh << 'EOF'
+#!/bin/bash
+# Simple script to refresh mDNS when IP changes
+
+CURRENT_IP=$(hostname -I | awk '{print $1}')
+LAST_IP_FILE="/var/tmp/iotpilot-last-ip"
+
+if [ -f "$LAST_IP_FILE" ]; then
+    LAST_IP=$(cat "$LAST_IP_FILE")
+    if [ "$CURRENT_IP" != "$LAST_IP" ] && [ -n "$CURRENT_IP" ]; then
+        logger "IoTPilot: IP changed from $LAST_IP to $CURRENT_IP, refreshing mDNS"
+        systemctl restart avahi-daemon
+    fi
+fi
+
+echo "$CURRENT_IP" > "$LAST_IP_FILE"
+EOF
+
+  chmod +x /usr/local/bin/iotpilot-mdns-refresh.sh
+
+  # Add to cron (check every 5 minutes)
+  if ! crontab -l 2>/dev/null | grep -q iotpilot-mdns-refresh; then
+    (crontab -l 2>/dev/null; echo "*/5 * * * * /usr/local/bin/iotpilot-mdns-refresh.sh >/dev/null 2>&1") | crontab -
+    info "Added IP monitoring to cron"
+  fi
+
+  info "mDNS setup complete"
+  info "Device should be accessible as 'iotpilot.local' on your network"
+  info "Note: Some routers may block mDNS traffic - if issues persist, use direct IP"
 }
 
 # Install Traefik as a reverse proxy
