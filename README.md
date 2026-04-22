@@ -117,6 +117,43 @@ For Raspberry Pi 3, Pi 4, and other ARM64-based devices:
 - Includes additional Tailscale auto-fix service for improved remote access
 - Traefik configured for ARM64 architecture
 
+## 🔐 Remote Management & Authentication
+
+After a Pi is installed, administer it over SSH (typically via Tailscale) using Makefile targets from the cloned repo at `/opt/iotpilot`:
+
+```bash
+# One-liner from your laptop
+ssh iotpilot@pi-name.tail-xxxx.ts.net "sudo make -C /opt/iotpilot <target>"
+```
+
+The `-C /opt/iotpilot` flag points `make` at the project directory — the Makefile lives there, not at `/` or anywhere else on the system.
+
+### Updating to the latest version
+
+```bash
+sudo make -C /opt/iotpilot update-prod
+```
+
+Pulls `main`, reinstalls npm dependencies only when `app/package.json` changed (avoids needless work on Pi Zero), and restarts the `iotpilot` systemd unit. Safe to run over and over; idempotent.
+
+### Turning authentication on/off
+
+The admin panel (device CRUD, export/import, scale-writing commands) can be gated behind a session-based login. **Off by default** so existing Pis keep working after an update. Read-only endpoints (`/api/devices`, `/weight`, `/status`, `/export`) stay open regardless, so KDS and other LAN readers are unaffected.
+
+```bash
+sudo make -C /opt/iotpilot enable-auth        # turn on (generates SESSION_SECRET if missing)
+sudo make -C /opt/iotpilot show-auth-status   # print current state
+sudo make -C /opt/iotpilot disable-auth       # turn off
+```
+
+Auth model (same pattern as a home router):
+
+- Username is always `admin`.
+- **Master password**: a single global bcrypt hash committed at `app/config/auth.js`. Plaintext is held only in a password manager, never stored server-side. Rotating it means editing the hash, pushing, and running `update-prod` on every Pi.
+- **Local password**: a per-Pi bcrypt hash stored in the `Settings` table of the Pi's SQLite database. Set or changed at runtime from the Configuración → "Cambiar contraseña local" panel in the UI.
+
+Both hashes grant the same access; either one can log in. Sessions last 30 minutes of inactivity with a rolling window (every authenticated request resets the timer). They live in-memory, so a restart (including `update-prod`) requires everyone to log in again.
+
 ## 🔌 Supported Devices
 
 Currently supported devices:
@@ -132,23 +169,37 @@ Planned support for additional device types:
 
 ## 🔧 API Reference
 
-### Device Management Endpoints
+Endpoints marked 🔒 require an active session when `AUTH_ENABLED=true`; they are open otherwise.
 
-- `GET /api/devices` - List all configured devices
-- `GET /api/devices/:id` - Get a specific device
-- `POST /api/devices` - Add a new device
-- `PUT /api/devices/:id` - Update a device
-- `DELETE /api/devices/:id` - Remove a device
+### Device Management
 
-### Device Control Endpoints (IP-based, recommended)
+- `GET /api/devices` — List all configured devices
+- `GET /api/devices/:id` — Get a specific device
+- 🔒 `POST /api/devices` — Add a new device
+- 🔒 `PUT /api/devices/:id` — Update a device
+- 🔒 `DELETE /api/devices/:id` — Remove a device
 
-- `GET /api/devices/:ip/weight` - Get current weight reading
-- `GET /api/devices/:ip/tare` - Tare the scale
-- `GET /api/devices/:ip/status` - Get device status
-- `GET /api/devices/:ip/clearPreset` - Clear preset tare
-- `GET /api/devices/:ip/presetTare?value=<kg>` - Set preset tare
+### Scale Control (IP-based, recommended)
 
-For complete API documentation, visit `/api-docs` on your IotPilot server.
+- `GET /api/devices/:ip/weight` — Read current weight (open, used by KDS)
+- `GET /api/devices/:ip/status` — Read device status (open)
+- 🔒 `GET /api/devices/:ip/tare` — Tare the scale
+- 🔒 `GET /api/devices/:ip/clearPreset` — Clear preset tare
+- 🔒 `GET /api/devices/:ip/presetTare?value=<kg>` — Set preset tare
+
+### Configuration
+
+- `GET /api/devices/export` — Download a JSON dump of all devices
+- 🔒 `POST /api/devices/import` — Load a previously exported JSON (modes: `merge` | `replace`)
+
+### Authentication (active when `AUTH_ENABLED=true`)
+
+- `POST /api/auth/login` — Body: `{user: "admin", password}`. Sets session cookie.
+- 🔒 `POST /api/auth/logout` — Destroy the current session
+- `GET /api/auth/me` — Current session state (for the UI)
+- 🔒 `POST /api/auth/change-local-password` — Update the per-Pi local password
+
+For the complete OpenAPI spec, visit `/api-docs` on your IotPilot server.
 
 ## 🧰 Architecture
 
@@ -195,7 +246,6 @@ Both build scripts use Docker with cross-platform emulation to build the package
 ## 🔮 Next Steps
 
 - Add support for additional IoT device types
-- Implement user authentication
 - Add data logging and visualization
 - Develop mobile application
 - Create a webhook system for integration with other systems
