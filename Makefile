@@ -6,7 +6,7 @@ DOCKER_BINARY := docker-compose -f docker/docker-compose.yml --env-file .env
 .PHONY: tailscale-status tailscale-up tailscale-down
 .PHONY: logs-prod-nodejs logs-prod-traefik logs-prod-tailscale logs-prod-all
 .PHONY: restart-prod-nodejs restart-prod-traefik restart-prod-tailscale restart-prod-all
-.PHONY: stop-prod-all status-prod
+.PHONY: stop-prod-all status-prod update-prod
 
 # Default target
 help:
@@ -40,6 +40,7 @@ help:
 	@echo "  restart-prod-all     - Restart all services"
 	@echo "  stop-prod-all        - Stop all services"
 	@echo "  status-prod          - Show production status"
+	@echo "  update-prod          - Pull latest code from main and restart iotpilot"
 	@echo ""
 	@echo "🔧 Setup:"
 	@echo "  setup          - Setup certificates and hosts"
@@ -141,6 +142,16 @@ status-prod:
 	@systemctl status traefik --no-pager
 	@systemctl status iotpilot --no-pager
 	@systemctl status tailscaled --no-pager
+
+update-prod:
+	@cd /opt/iotpilot && \
+	 git pull --ff-only origin main && \
+	 if git diff --name-only HEAD@{1} HEAD | grep -q '^app/package.json$$'; then \
+	   echo "package.json changed, running npm install..."; \
+	   cd app && npm install --omit=dev --no-audit --no-fund; \
+	 fi && \
+	 systemctl restart iotpilot
+	@echo "Update complete"
 
 # Setup commands
 setup: sudo-setup non-sudo-setup
