@@ -44,11 +44,12 @@ if (AUTH_ENABLED) {
         secret: SESSION_SECRET,
         resave: false,
         saveUninitialized: false,
+        rolling: true, // Reset maxAge on every request so active users don't get logged out
         cookie: {
             httpOnly: true,
             sameSite: 'lax',
             secure: false, // Served via Traefik; Pi-internal traffic is http
-            maxAge: 1000 * 60 * 60 * 12, // 12 hours
+            maxAge: 1000 * 60 * 30, // 30 minutes of inactivity
         },
     }));
 }
@@ -118,6 +119,12 @@ app.post('/api/auth/login', async (req, res) => {
         const { user, password } = req.body || {};
         if (!user || !password) {
             return res.status(400).json({ error: 'Missing user or password' });
+        }
+        // Single-user model: username is always "admin". Reject any other value
+        // with a generic 401 so we don't leak which field was wrong.
+        if (user !== 'admin') {
+            await new Promise((r) => setTimeout(r, 400));
+            return res.status(401).json({ error: 'Invalid credentials' });
         }
 
         // Try master first, then local (stored in Settings).
