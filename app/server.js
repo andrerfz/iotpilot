@@ -91,6 +91,27 @@ app.get('/api/devices', async (req, res) => {
     }
 });
 
+app.get('/api/devices/export', async (req, res) => {
+    try {
+        const devices = await deviceManager.getAllDevices();
+        const payload = {
+            exported_at: new Date().toISOString(),
+            hostname: HOST_NAME,
+            version: require('./package.json').version,
+            device_count: devices.length,
+            devices,
+        };
+        const date = new Date().toISOString().slice(0, 10);
+        const safeHost = HOST_NAME.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const filename = `iotpilot-devices-${safeHost}-${date}.json`;
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(JSON.stringify(payload, null, 2));
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.get('/api/devices/:id', async (req, res) => {
     try {
         const device = await deviceManager.getDevice(req.params.id);

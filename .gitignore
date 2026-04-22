@@ -6,3 +6,6 @@
 .env
 *.log
 .DS_Store
+/.cursor/skills/frontend-design/
+/.agents/skills/frontend-design/LICENSE.txt
+/.agents/skills/frontend-design/SKILL.md
