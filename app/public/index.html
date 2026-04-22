@@ -74,24 +74,6 @@
             color: #666;
             font-size: 0.9em;
         }
-        .toolbar {
-            margin-top: 20px;
-            display: flex;
-            justify-content: flex-end;
-        }
-        .btn {
-            background-color: #2ecc71;
-            color: white;
-            border: none;
-            padding: 10px 18px;
-            border-radius: 6px;
-            font-size: 0.95em;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
-        }
-        .btn:hover {
-            background-color: #27ae60;
-        }
 </style>
 </head>
 <body>
@@ -104,10 +86,6 @@
     <h2>Supported Device Types</h2>
     <p>Select a device type to manage your IoT devices</p>
 
-    <div class="toolbar">
-        <a class="btn" href="/api/devices/export">⬇️ Descargar configuración de dispositivos</a>
-    </div>
-
     <div class="device-grid">
         <div class="device-card" onclick="window.location.href='devices/scale.html'">
             <div class="card-header">
@@ -117,6 +95,17 @@
                 <div class="card-icon">⚖️</div>
                 <p>Manage and control your connected scales</p>
                 <p class="card-description">Support for HF2211 and compatible scales</p>
+            </div>
+        </div>
+
+        <div class="device-card" onclick="window.location.href='config/'">
+            <div class="card-header">
+                <h3>Configuración</h3>
+            </div>
+            <div class="card-body">
+                <div class="card-icon">⚙️</div>
+                <p>Exportar e importar configuración de dispositivos</p>
+                <p class="card-description">Backup y restauración entre dispositivos</p>
             </div>
         </div>
 

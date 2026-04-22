@@ -112,6 +112,25 @@ app.get('/api/devices/export', async (req, res) => {
     }
 });
 
+// TODO: secure this endpoint (along with the rest of /api/devices) with auth.
+app.post('/api/devices/import', async (req, res) => {
+    try {
+        const { mode = 'merge', payload } = req.body || {};
+
+        if (mode !== 'merge' && mode !== 'replace') {
+            return res.status(400).json({ error: 'Modo inválido: debe ser "merge" o "replace"' });
+        }
+        if (!payload || !Array.isArray(payload.devices)) {
+            return res.status(400).json({ error: 'Formato inválido: se esperaba { payload: { devices: [...] } }' });
+        }
+
+        const summary = await deviceManager.importDevices(payload.devices, mode);
+        res.json(summary);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.get('/api/devices/:id', async (req, res) => {
     try {
         const device = await deviceManager.getDevice(req.params.id);

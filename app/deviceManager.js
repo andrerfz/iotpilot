@@ -112,6 +112,65 @@ class DeviceManager {
             return null;
         }
     }
+
+    // Bulk import devices from an exported payload.
+    // Dedup by (host, port). On name collision (UNIQUE), auto-rename with " (N)" suffix.
+    async importDevices(devices, mode = 'merge') {
+        const summary = { added: 0, skipped: 0, renamed: 0, errors: [] };
+
+        if (mode === 'replace') {
+            await Device.destroy({ where: {} });
+        }
+
+        const existing = mode === 'replace' ? [] : await this.getAllDevices();
+        const byHostPort = new Map();
+        const names = new Set();
+        for (const d of existing) {
+            byHostPort.set(`${d.host.trim()}:${d.port}`, d);
+            names.add(d.name);
+        }
+
+        for (const raw of devices) {
+            try {
+                if (!raw || !raw.name || !raw.host || raw.port == null) {
+                    summary.errors.push({ name: raw?.name || '(sin nombre)', error: 'Faltan campos requeridos (name, host, port)' });
+                    continue;
+                }
+
+                const key = `${String(raw.host).trim()}:${raw.port}`;
+                if (byHostPort.has(key)) {
+                    summary.skipped++;
+                    continue;
+                }
+
+                let name = String(raw.name);
+                const wasRenamed = names.has(name);
+                if (wasRenamed) {
+                    let suffix = 2;
+                    while (names.has(`${raw.name} (${suffix})`)) suffix++;
+                    name = `${raw.name} (${suffix})`;
+                }
+
+                const created = await Device.create({
+                    name,
+                    type: raw.type || 'scale',
+                    host: String(raw.host).trim(),
+                    port: Number(raw.port),
+                    description: raw.description ?? null,
+                    active: raw.active !== false,
+                });
+
+                names.add(name);
+                byHostPort.set(key, created);
+                summary.added++;
+                if (wasRenamed) summary.renamed++;
+            } catch (err) {
+                summary.errors.push({ name: raw?.name || '(sin nombre)', error: err.message });
+            }
+        }
+
+        return summary;
+    }
 }
 
 module.exports = new DeviceManager();

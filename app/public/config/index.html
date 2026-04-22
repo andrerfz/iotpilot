@@ -1,0 +1,346 @@
+<!-- app/public/config/index.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Pilot - Configuración</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        header {
+            background-color: #3498db;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        h1, h2 {
+            margin: 0;
+        }
+        .subheader {
+            font-size: 1.2em;
+            opacity: 0.8;
+            margin-top: 10px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #3498db;
+            text-decoration: none;
+            font-size: 0.95em;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .config-layout {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            overflow: hidden;
+            min-height: 420px;
+        }
+        .sidebar {
+            background-color: #fafafa;
+            border-right: 1px solid #e8e8e8;
+            padding: 16px 0;
+        }
+        .sidebar-item {
+            display: block;
+            padding: 12px 24px;
+            color: #333;
+            text-decoration: none;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            user-select: none;
+        }
+        .sidebar-item:hover {
+            background-color: #f0f0f0;
+        }
+        .sidebar-item.active {
+            background-color: #eaf5fc;
+            border-left-color: #3498db;
+            color: #3498db;
+            font-weight: 500;
+        }
+        .panel {
+            padding: 32px;
+            display: none;
+        }
+        .panel.active {
+            display: block;
+        }
+        .panel h2 {
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 1.4em;
+        }
+        .panel .description {
+            color: #666;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 1em;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: background-color 0.2s ease;
+        }
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+        .btn-primary:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: #333;
+            font-size: 0.95em;
+        }
+        .form-group input[type="file"] {
+            padding: 10px;
+            border: 2px dashed #bdc3c7;
+            border-radius: 6px;
+            width: 100%;
+            box-sizing: border-box;
+            background-color: #fafafa;
+            font-size: 0.9em;
+        }
+        .checkbox-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .checkbox-row input[type="checkbox"] {
+            margin-top: 3px;
+        }
+        .checkbox-row label {
+            color: #333;
+            line-height: 1.4;
+            cursor: pointer;
+        }
+        .result-box {
+            margin-top: 24px;
+            padding: 16px;
+            border-radius: 6px;
+            background-color: #f9f9f9;
+            border-left: 4px solid #3498db;
+        }
+        .result-box .line {
+            margin: 4px 0;
+            font-size: 0.95em;
+        }
+        .result-box .ok { color: #27ae60; }
+        .result-box .skip { color: #7f8c8d; }
+        .result-box .warn { color: #e67e22; }
+        .result-box .err { color: #e74c3c; }
+        .result-box ul {
+            margin-top: 8px;
+            padding-left: 20px;
+            color: #333;
+            font-size: 0.9em;
+        }
+        .warning-note {
+            color: #7f8c8d;
+            font-size: 0.85em;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>IoT Pilot</h1>
+    <div class="subheader">Configuración</div>
+</header>
+
+<div class="container">
+    <a href="/" class="back-link">← Volver al inicio</a>
+
+    <div class="config-layout">
+        <nav class="sidebar">
+            <a class="sidebar-item active" data-panel="export">Exportar dispositivos</a>
+            <a class="sidebar-item" data-panel="import">Importar dispositivos</a>
+        </nav>
+
+        <div>
+            <div class="panel active" id="panel-export">
+                <h2>Exportar dispositivos</h2>
+                <p class="description">
+                    Descarga un archivo JSON con toda la configuración de dispositivos.
+                    Incluye metadatos del export (fecha, hostname, versión de la app).
+                </p>
+                <a class="btn-primary" href="/api/devices/export">⬇ Descargar JSON</a>
+            </div>
+
+            <div class="panel" id="panel-import">
+                <h2>Importar dispositivos</h2>
+                <p class="description">
+                    Carga un JSON exportado previamente. Los dispositivos duplicados
+                    (mismo <code>host</code> y <code>port</code>) se omiten automáticamente.
+                    Si un nombre ya existe, se añade un sufijo numérico al importado.
+                </p>
+
+                <div class="form-group">
+                    <label for="file-input">Archivo JSON a importar:</label>
+                    <input type="file" id="file-input" accept="application/json,.json">
+                </div>
+
+                <div class="form-group">
+                    <div class="checkbox-row">
+                        <input type="checkbox" id="replace-mode">
+                        <label for="replace-mode">
+                            <strong>Reemplazar todos los dispositivos existentes</strong>
+                            <div class="warning-note">
+                                Borra la base de datos actual antes de importar. Irreversible.
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <button class="btn-primary" id="import-btn" disabled>Importar</button>
+
+                <div class="result-box" id="result-box" style="display: none;">
+                    <div id="result-content"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.querySelectorAll('.sidebar-item').forEach(function (item) {
+        item.addEventListener('click', function () {
+            var panelId = item.dataset.panel;
+            document.querySelectorAll('.sidebar-item').forEach(function (i) { i.classList.remove('active'); });
+            document.querySelectorAll('.panel').forEach(function (p) { p.classList.remove('active'); });
+            item.classList.add('active');
+            document.getElementById('panel-' + panelId).classList.add('active');
+        });
+    });
+
+    var fileInput = document.getElementById('file-input');
+    var importBtn = document.getElementById('import-btn');
+    var resultBox = document.getElementById('result-box');
+    var resultContent = document.getElementById('result-content');
+    var replaceCheck = document.getElementById('replace-mode');
+
+    fileInput.addEventListener('change', function () {
+        importBtn.disabled = !fileInput.files.length;
+    });
+
+    importBtn.addEventListener('click', async function () {
+        var file = fileInput.files[0];
+        if (!file) return;
+
+        resultBox.style.display = 'none';
+        importBtn.disabled = true;
+        importBtn.textContent = 'Importando...';
+
+        try {
+            var text = await file.text();
+            var payload;
+            try {
+                payload = JSON.parse(text);
+            } catch (e) {
+                renderResultMessage('err', 'Archivo JSON inválido: ' + e.message);
+                return;
+            }
+
+            var mode = replaceCheck.checked ? 'replace' : 'merge';
+            if (mode === 'replace' && !confirm('¿Seguro que quieres REEMPLAZAR todos los dispositivos existentes? Esta acción es irreversible.')) {
+                importBtn.disabled = false;
+                importBtn.textContent = 'Importar';
+                return;
+            }
+
+            var res = await fetch('/api/devices/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: mode, payload: payload })
+            });
+            var data = await res.json();
+
+            if (!res.ok) {
+                renderResultMessage('err', 'Error: ' + (data.error || res.statusText));
+                return;
+            }
+
+            renderImportSummary(data);
+        } catch (err) {
+            renderResultMessage('err', 'Error inesperado: ' + err.message);
+        } finally {
+            importBtn.disabled = false;
+            importBtn.textContent = 'Importar';
+        }
+    });
+
+    function renderResultMessage(cls, msg) {
+        clearChildren(resultContent);
+        var line = document.createElement('div');
+        line.className = 'line ' + cls;
+        line.textContent = msg;
+        resultContent.appendChild(line);
+        resultBox.style.display = 'block';
+    }
+
+    function renderImportSummary(data) {
+        clearChildren(resultContent);
+        resultContent.appendChild(makeLine('ok', '✓ Añadidos: ', Number(data.added) || 0));
+        resultContent.appendChild(makeLine('skip', '↷ Omitidos (ya existían): ', Number(data.skipped) || 0));
+        if (data.renamed) {
+            resultContent.appendChild(makeLine('warn', '⚠ Renombrados (nombre en uso): ', Number(data.renamed) || 0));
+        }
+        if (Array.isArray(data.errors) && data.errors.length) {
+            resultContent.appendChild(makeLine('err', '✗ Errores: ', data.errors.length));
+            var list = document.createElement('ul');
+            for (var i = 0; i < data.errors.length; i++) {
+                var e = data.errors[i];
+                var li = document.createElement('li');
+                var strong = document.createElement('strong');
+                strong.textContent = String(e.name == null ? '(sin nombre)' : e.name);
+                li.appendChild(strong);
+                li.appendChild(document.createTextNode(': ' + String(e.error || '')));
+                list.appendChild(li);
+            }
+            resultContent.appendChild(list);
+        }
+        resultBox.style.display = 'block';
+    }
+
+    function makeLine(cls, label, count) {
+        var div = document.createElement('div');
+        div.className = 'line ' + cls;
+        div.appendChild(document.createTextNode(label));
+        var strong = document.createElement('strong');
+        strong.textContent = String(count);
+        div.appendChild(strong);
+        return div;
+    }
+
+    function clearChildren(node) {
+        while (node.firstChild) node.removeChild(node.firstChild);
+    }
+</script>
+</body>
+</html>
