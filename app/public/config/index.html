@@ -166,12 +166,54 @@
             font-size: 0.85em;
             margin-top: 4px;
         }
+        .header-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-sizing: border-box;
+        }
+        .header-title-block {
+            text-align: center;
+            flex: 1;
+        }
+        .session-info {
+            color: white;
+            font-size: 0.9em;
+            opacity: 0.9;
+            text-align: right;
+        }
+        .session-info a {
+            color: white;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        .role-badge {
+            display: inline-block;
+            padding: 1px 8px;
+            border-radius: 10px;
+            background-color: rgba(255,255,255,0.18);
+            font-size: 0.8em;
+            margin-left: 4px;
+        }
+        .role-badge.master {
+            background-color: #f1c40f;
+            color: #333;
+        }
     </style>
 </head>
 <body>
 <header>
-    <h1>IoT Pilot</h1>
-    <div class="subheader">Configuración</div>
+    <div class="header-inner">
+        <div style="width: 200px;"></div>
+        <div class="header-title-block">
+            <h1>IoT Pilot</h1>
+            <div class="subheader">Configuración</div>
+        </div>
+        <div class="session-info" id="session-info" style="width: 200px;"></div>
+    </div>
 </header>
 
 <div class="container">
@@ -181,6 +223,7 @@
         <nav class="sidebar">
             <a class="sidebar-item active" data-panel="export">Exportar dispositivos</a>
             <a class="sidebar-item" data-panel="import">Importar dispositivos</a>
+            <a class="sidebar-item" data-panel="password" id="sidebar-password" style="display:none;">Cambiar contraseña local</a>
         </nav>
 
         <div>
@@ -224,11 +267,102 @@
                     <div id="result-content"></div>
                 </div>
             </div>
+
+            <div class="panel" id="panel-password">
+                <h2>Cambiar contraseña local</h2>
+                <p class="description">
+                    Cambia la contraseña local del panel. La contraseña maestra no se modifica
+                    desde aquí — solo accesible al equipo de Yurest.
+                </p>
+
+                <div class="form-group">
+                    <label for="pwd-new">Nueva contraseña (mínimo 8 caracteres)</label>
+                    <input type="password" id="pwd-new" autocomplete="new-password"
+                           style="width: 100%; padding: 10px 12px; border: 1px solid #bdc3c7; border-radius: 6px; font-size: 1em; box-sizing: border-box; font-family: inherit;">
+                </div>
+                <div class="form-group">
+                    <label for="pwd-confirm">Confirmar nueva contraseña</label>
+                    <input type="password" id="pwd-confirm" autocomplete="new-password"
+                           style="width: 100%; padding: 10px 12px; border: 1px solid #bdc3c7; border-radius: 6px; font-size: 1em; box-sizing: border-box; font-family: inherit;">
+                </div>
+                <button class="btn-primary" id="pwd-save-btn">Guardar</button>
+
+                <div class="result-box" id="pwd-result" style="display: none;">
+                    <div id="pwd-result-content"></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
+    var authState = { enabled: false, user: null, role: null };
+
+    (async function bootstrapAuth() {
+        try {
+            var res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+            if (res.status === 401) {
+                window.location.replace('/login/?next=' + encodeURIComponent('/config/'));
+                return;
+            }
+            var data = await res.json();
+            authState = {
+                enabled: !!data.authEnabled,
+                user: data.user || null,
+                role: data.role || null,
+            };
+            renderSessionInfo();
+            if (authState.enabled) {
+                document.getElementById('sidebar-password').style.display = 'block';
+            }
+        } catch (err) {
+            // Network error; leave UI as-is, user can still try actions.
+        }
+    })();
+
+    function renderSessionInfo() {
+        var box = document.getElementById('session-info');
+        clearChildren(box);
+        if (!authState.enabled) {
+            var note = document.createElement('span');
+            note.textContent = 'Auth deshabilitada';
+            note.style.opacity = '0.7';
+            box.appendChild(note);
+            return;
+        }
+        if (authState.user) {
+            var userText = document.createElement('span');
+            userText.textContent = authState.user;
+            box.appendChild(userText);
+            if (authState.role) {
+                var badge = document.createElement('span');
+                badge.className = 'role-badge' + (authState.role === 'master' ? ' master' : '');
+                badge.textContent = authState.role;
+                box.appendChild(badge);
+            }
+            box.appendChild(document.createTextNode(' · '));
+            var logout = document.createElement('a');
+            logout.textContent = 'Cerrar sesión';
+            logout.addEventListener('click', doLogout);
+            box.appendChild(logout);
+        }
+    }
+
+    async function doLogout() {
+        try {
+            await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+        } catch (_) {}
+        window.location.replace('/login/');
+    }
+
+    function handleAuthRequired(res) {
+        if (res.status === 401) {
+            window.location.replace('/login/?next=' + encodeURIComponent('/config/'));
+            return true;
+        }
+        return false;
+    }
+
     document.querySelectorAll('.sidebar-item').forEach(function (item) {
         item.addEventListener('click', function () {
             var panelId = item.dataset.panel;
@@ -277,8 +411,10 @@
             var res = await fetch('/api/devices/import', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
                 body: JSON.stringify({ mode: mode, payload: payload })
             });
+            if (handleAuthRequired(res)) return;
             var data = await res.json();
 
             if (!res.ok) {
@@ -340,6 +476,63 @@
 
     function clearChildren(node) {
         while (node.firstChild) node.removeChild(node.firstChild);
+    }
+
+    // Change local password panel
+    var pwdSaveBtn = document.getElementById('pwd-save-btn');
+    var pwdResult = document.getElementById('pwd-result');
+    var pwdResultContent = document.getElementById('pwd-result-content');
+
+    pwdSaveBtn.addEventListener('click', async function () {
+        var n1 = document.getElementById('pwd-new').value;
+        var n2 = document.getElementById('pwd-confirm').value;
+        pwdResult.style.display = 'none';
+
+        if (n1.length < 8) {
+            showPwdResult('err', 'La contraseña debe tener al menos 8 caracteres.');
+            return;
+        }
+        if (n1 !== n2) {
+            showPwdResult('err', 'Las contraseñas no coinciden.');
+            return;
+        }
+
+        pwdSaveBtn.disabled = true;
+        pwdSaveBtn.textContent = 'Guardando...';
+
+        try {
+            var res = await fetch('/api/auth/change-local-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ newPassword: n1 })
+            });
+            if (handleAuthRequired(res)) return;
+            var data = {};
+            try { data = await res.json(); } catch (_) {}
+
+            if (!res.ok) {
+                showPwdResult('err', data.error || 'Error HTTP ' + res.status);
+                return;
+            }
+            document.getElementById('pwd-new').value = '';
+            document.getElementById('pwd-confirm').value = '';
+            showPwdResult('ok', 'Contraseña local actualizada correctamente.');
+        } catch (err) {
+            showPwdResult('err', 'Error de red: ' + err.message);
+        } finally {
+            pwdSaveBtn.disabled = false;
+            pwdSaveBtn.textContent = 'Guardar';
+        }
+    });
+
+    function showPwdResult(cls, msg) {
+        clearChildren(pwdResultContent);
+        var line = document.createElement('div');
+        line.className = 'line ' + cls;
+        line.textContent = msg;
+        pwdResultContent.appendChild(line);
+        pwdResult.style.display = 'block';
     }
 </script>
 </body>
