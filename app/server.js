@@ -1,4 +1,6 @@
 const express = require('express');
+const session = require('express-session');
+const bcrypt = require('bcryptjs');
 const app = express();
 const HTTP_PORT = 4000;
 const path = require('path');
@@ -7,15 +9,21 @@ const path = require('path');
 const { swaggerSpec, swaggerUi, swaggerUiOptions } = require('./swagger');
 
 // Import database and device manager
-const { initDatabase } = require('./db');
+const { initDatabase, Setting } = require('./db');
 const deviceManager = require('./deviceManager');
 
 // Import utility functions for scale commands
 const scaleCommands = require('./scaleCommands');
 
+// Import auth configuration and middleware
+const authConfig = require('./config/auth');
+const { requireAuth, AUTH_ENABLED } = require('./middleware/requireAuth');
+
 // Get hostname from environment
 const HOST_NAME = process.env.HOST_NAME || 'localhost';
 const NODE_ENV = process.env.NODE_ENV || "development";
+const SESSION_SECRET_DEFAULT = 'iotpilot-dev-secret-change-in-production';
+const SESSION_SECRET = process.env.SESSION_SECRET || SESSION_SECRET_DEFAULT;
 
 // CORS middleware to allow API access from other domains when needed
 app.use((req, res, next) => {
@@ -27,8 +35,33 @@ app.use((req, res, next) => {
 });
 
 // Middleware
-app.use(express.static('public'));
 app.use(express.json());
+
+// Session middleware (in-memory store — sessions are lost on restart, which is
+// fine for a single-Pi low-volume deployment). Only active when AUTH_ENABLED.
+if (AUTH_ENABLED) {
+    if (SESSION_SECRET === SESSION_SECRET_DEFAULT) {
+        console.warn('[AUTH] AUTH_ENABLED=true but SESSION_SECRET is the hardcoded default. Set a random value in .env (openssl rand -base64 48) or run `make enable-auth`.');
+    }
+    app.use(session({
+        name: authConfig.SESSION_COOKIE_NAME,
+        secret: SESSION_SECRET,
+        resave: false,
+        saveUninitialized: false,
+        rolling: true, // Reset maxAge on every request so active users don't get logged out
+        cookie: {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: false, // Served via Traefik; Pi-internal traffic is http
+            maxAge: 1000 * 60 * 30, // 30 minutes of inactivity
+        },
+    }));
+}
+
+// Apply requireAuth to protected routes before they're registered.
+app.use(requireAuth);
+
+app.use(express.static('public'));
 
 // Create data directory for SQLite
 const fs = require('fs');
@@ -79,6 +112,89 @@ app.use((err, req, res, next) => {
         error: 'Internal server error',
         message: process.env.NODE_ENV === 'development' ? err.message : 'An unexpected error occurred'
     });
+});
+
+// Auth endpoints
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        if (!AUTH_ENABLED) {
+            return res.status(400).json({ error: 'Auth is disabled on this deployment' });
+        }
+        const { user, password } = req.body || {};
+        if (!user || !password) {
+            return res.status(400).json({ error: 'Missing user or password' });
+        }
+        // Single-user model: username is always "admin". Reject any other value
+        // with a generic 401 so we don't leak which field was wrong.
+        if (user !== 'admin') {
+            await new Promise((r) => setTimeout(r, 400));
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        // Try master first, then local (stored in Settings).
+        let role = null;
+        if (await bcrypt.compare(password, authConfig.MASTER_HASH)) {
+            role = 'master';
+        } else {
+            const localHash = await Setting.get('local_password_hash');
+            if (localHash && await bcrypt.compare(password, localHash)) {
+                role = 'local';
+            }
+        }
+
+        if (!role) {
+            // Small fixed delay to blunt brute-force without proper rate limiting.
+            await new Promise((r) => setTimeout(r, 400));
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        req.session.userId = user;
+        req.session.role = role;
+
+        if (role === 'master') {
+            const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+            console.warn(`[AUTH] Login with master credentials from ${ip} at ${new Date().toISOString()}`);
+        }
+
+        res.json({ user, role });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+    if (!req.session) return res.json({ ok: true });
+    req.session.destroy((err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.clearCookie(authConfig.SESSION_COOKIE_NAME);
+        res.json({ ok: true });
+    });
+});
+
+app.get('/api/auth/me', (req, res) => {
+    if (!AUTH_ENABLED) return res.json({ authEnabled: false });
+    if (req.session && req.session.userId) {
+        return res.json({ authEnabled: true, user: req.session.userId, role: req.session.role });
+    }
+    res.status(401).json({ authEnabled: true, error: 'Not authenticated' });
+});
+
+app.post('/api/auth/change-local-password', async (req, res) => {
+    try {
+        if (!AUTH_ENABLED) return res.status(400).json({ error: 'Auth is disabled' });
+        if (!req.session || !req.session.userId) {
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+        const { newPassword } = req.body || {};
+        if (typeof newPassword !== 'string' || newPassword.length < 8) {
+            return res.status(400).json({ error: 'Password must be at least 8 characters' });
+        }
+        const hash = await bcrypt.hash(newPassword, authConfig.BCRYPT_COST);
+        await Setting.set('local_password_hash', hash);
+        res.json({ ok: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Device API endpoints

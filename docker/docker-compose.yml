@@ -16,6 +16,8 @@ services:
       - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true
       - HOST_NAME=${HOST_NAME:-iotpilot.test}
+      - AUTH_ENABLED=${AUTH_ENABLED:-false}
+      - SESSION_SECRET=${SESSION_SECRET:-}
     restart: unless-stopped
     command: bash -c "npm install && npm run dev"
     networks:

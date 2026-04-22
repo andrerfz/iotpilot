@@ -189,7 +189,7 @@ const initDatabase = async () => {
         }
 
         // Create tables if they don't exist
-        const createTableSql = `
+        const createDevicesSql = `
             CREATE TABLE IF NOT EXISTS Devices (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
@@ -203,10 +203,20 @@ const initDatabase = async () => {
             )
         `;
 
+        const createSettingsSql = `
+            CREATE TABLE IF NOT EXISTS Settings (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updatedAt TEXT
+            )
+        `;
+
         if (dbAdapter.isAsync()) {
-            await dbAdapter.execute(createTableSql);
+            await dbAdapter.execute(createDevicesSql);
+            await dbAdapter.execute(createSettingsSql);
         } else {
-            dbAdapter.execute(createTableSql);
+            dbAdapter.execute(createDevicesSql);
+            dbAdapter.execute(createSettingsSql);
         }
 
         console.log('Database initialized successfully');
@@ -366,10 +376,14 @@ const DeviceModel = {
     }
 };
 
+// Settings model is constructed lazily so it binds to the already-connected adapter
+const Setting = require('./models/setting')(dbAdapter);
+
 // Export the database components with our custom implementation
 module.exports = {
     sequelize,
     Device: DeviceModel,
+    Setting,
     initDatabase,
     DataTypes // Export DataTypes for use in model definitions
 };

@@ -528,10 +528,18 @@ setup_application() {
   # Create data directory
   mkdir -p "$repo_dir/app/data"
 
-  # Set up environment file
+  # Set up environment file. This block runs only on fresh installs (.env
+  # missing). On updates, the existing .env is left untouched so upgrading
+  # Pis keep their current auth state.
   if [ ! -f "$repo_dir/.env" ]; then
       cp "$repo_dir/.env.example" "$repo_dir/.env" || warn "Failed to create .env file"
       sed -i "s/HOST_NAME=.*/HOST_NAME=iotpilot.local/" "$repo_dir/.env"
+
+      # Enable auth by default for fresh installs, with a random session secret.
+      sed -i "s/^AUTH_ENABLED=.*/AUTH_ENABLED=true/" "$repo_dir/.env"
+      SESSION_SECRET_VALUE=$(openssl rand -base64 48 | tr -d '\n')
+      sed -i "s|^SESSION_SECRET=.*|SESSION_SECRET=$SESSION_SECRET_VALUE|" "$repo_dir/.env"
+      info "Auth enabled by default (log in at /login with user 'admin' and the master password)"
 
       # Add Tailscale domain if available
       if [ -n "$TAILSCALE_FQDN" ]; then
