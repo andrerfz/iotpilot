@@ -1,6 +1,6 @@
 /vendor
 /.idea/
-/node_modules/
+node_modules/
 /docker/traefik/config/certs/
 
 .env
