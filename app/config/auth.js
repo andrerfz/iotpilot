@@ -13,11 +13,10 @@
 // The local (per-Pi) password hash lives in the Settings table of the SQLite
 // database and is managed from the Configuración UI. Either hash can log in.
 
-// Replace before merging feat/auth to main. Until then, this placeholder is
-// intentionally non-matchable (a real bcrypt hash begins with $2a$/$2b$/$2y$
-// followed by a 22-char base64 salt; the string below is shorter and will
-// always fail verification, so nobody can log in via "master" on feat/auth).
-const MASTER_HASH = '$2b$12$SET-ME-BEFORE-MERGE-TO-MAIN';
+// bcrypt hash of the master password. Plaintext is held in Yurest's
+// password manager; rotation = generate new hash, replace constant,
+// push, run `make update-prod` on every Pi.
+const MASTER_HASH = '$2b$12$51Qa5bl6O8gvOq1VTiDQ0eiL2mSe76ckkgrhpbGptR13EhcrvfAWG';
 
 module.exports = {
     MASTER_HASH,
