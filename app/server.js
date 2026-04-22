@@ -22,7 +22,8 @@ const { requireAuth, AUTH_ENABLED } = require('./middleware/requireAuth');
 // Get hostname from environment
 const HOST_NAME = process.env.HOST_NAME || 'localhost';
 const NODE_ENV = process.env.NODE_ENV || "development";
-const SESSION_SECRET = process.env.SESSION_SECRET || 'iotpilot-dev-secret-change-in-production';
+const SESSION_SECRET_DEFAULT = 'iotpilot-dev-secret-change-in-production';
+const SESSION_SECRET = process.env.SESSION_SECRET || SESSION_SECRET_DEFAULT;
 
 // CORS middleware to allow API access from other domains when needed
 app.use((req, res, next) => {
@@ -39,6 +40,9 @@ app.use(express.json());
 // Session middleware (in-memory store — sessions are lost on restart, which is
 // fine for a single-Pi low-volume deployment). Only active when AUTH_ENABLED.
 if (AUTH_ENABLED) {
+    if (SESSION_SECRET === SESSION_SECRET_DEFAULT) {
+        console.warn('[AUTH] AUTH_ENABLED=true but SESSION_SECRET is the hardcoded default. Set a random value in .env (openssl rand -base64 48) or run `make enable-auth`.');
+    }
     app.use(session({
         name: authConfig.SESSION_COOKIE_NAME,
         secret: SESSION_SECRET,

@@ -6,7 +6,7 @@ DOCKER_BINARY := docker-compose -f docker/docker-compose.yml --env-file .env
 .PHONY: tailscale-status tailscale-up tailscale-down
 .PHONY: logs-prod-nodejs logs-prod-traefik logs-prod-tailscale logs-prod-all
 .PHONY: restart-prod-nodejs restart-prod-traefik restart-prod-tailscale restart-prod-all
-.PHONY: stop-prod-all status-prod update-prod
+.PHONY: stop-prod-all status-prod update-prod enable-auth disable-auth show-auth-status
 
 # Default target
 help:
@@ -41,6 +41,9 @@ help:
 	@echo "  stop-prod-all        - Stop all services"
 	@echo "  status-prod          - Show production status"
 	@echo "  update-prod          - Pull latest code from main and restart iotpilot"
+	@echo "  enable-auth          - Turn AUTH_ENABLED on (generates SESSION_SECRET if missing)"
+	@echo "  disable-auth         - Turn AUTH_ENABLED off"
+	@echo "  show-auth-status     - Print current auth configuration"
 	@echo ""
 	@echo "🔧 Setup:"
 	@echo "  setup          - Setup certificates and hosts"
@@ -152,6 +155,43 @@ update-prod:
 	 fi && \
 	 systemctl restart iotpilot
 	@echo "Update complete"
+
+# Auth toggles. Operate on /opt/iotpilot/.env; require sudo because they
+# restart the iotpilot systemd unit at the end. Idempotent.
+enable-auth:
+	@ENV_FILE=/opt/iotpilot/.env; \
+	 if grep -q '^AUTH_ENABLED=' $$ENV_FILE; then \
+	   sed -i 's/^AUTH_ENABLED=.*/AUTH_ENABLED=true/' $$ENV_FILE; \
+	 else \
+	   echo 'AUTH_ENABLED=true' >> $$ENV_FILE; \
+	 fi; \
+	 if ! grep -qE '^SESSION_SECRET=.+' $$ENV_FILE; then \
+	   SECRET=$$(openssl rand -base64 48 | tr -d '\n'); \
+	   sed -i '/^SESSION_SECRET=/d' $$ENV_FILE; \
+	   echo "SESSION_SECRET=$$SECRET" >> $$ENV_FILE; \
+	   echo "Generated new SESSION_SECRET"; \
+	 else \
+	   echo "SESSION_SECRET already set, leaving unchanged"; \
+	 fi
+	@systemctl restart iotpilot
+	@echo "Auth ENABLED; iotpilot restarted"
+
+disable-auth:
+	@ENV_FILE=/opt/iotpilot/.env; \
+	 if grep -q '^AUTH_ENABLED=' $$ENV_FILE; then \
+	   sed -i 's/^AUTH_ENABLED=.*/AUTH_ENABLED=false/' $$ENV_FILE; \
+	 else \
+	   echo 'AUTH_ENABLED=false' >> $$ENV_FILE; \
+	 fi
+	@systemctl restart iotpilot
+	@echo "Auth DISABLED; iotpilot restarted"
+
+show-auth-status:
+	@ENV_FILE=/opt/iotpilot/.env; \
+	 AUTH=$$(grep '^AUTH_ENABLED=' $$ENV_FILE | cut -d= -f2- || echo '(unset → false)'); \
+	 if grep -qE '^SESSION_SECRET=.+' $$ENV_FILE; then SS='set'; else SS='not set'; fi; \
+	 echo "AUTH_ENABLED=$$AUTH"; \
+	 echo "SESSION_SECRET=$$SS"
 
 # Setup commands
 setup: sudo-setup non-sudo-setup
