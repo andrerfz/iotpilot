@@ -128,5 +128,10 @@
         <p>IoT Pilot v1.0.0 - For more information, view the <a href="/api-docs">API Documentation</a></p>
     </div>
 </div>
+<script>
+    fetch('/api/auth/status').then(r => r.json()).then(data => {
+        if (data.authEnabled && !data.user) window.location.href = '/login';
+    });
+</script>
 </body>
 </html>

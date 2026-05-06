@@ -593,8 +593,8 @@ RestartSec=10
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=iotpilot
+EnvironmentFile=-/opt/iotpilot/.env
 Environment=NODE_ENV=production
-Environment=HOST_NAME=iotpilot.local
 
 [Install]
 WantedBy=multi-user.target
