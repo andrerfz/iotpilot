@@ -167,6 +167,12 @@ setup_pi3_node_modules() {
       tar -xzf "$NODE_MODULES_ARCHIVE" -C "$repo_dir/app/"
 
       info "Successfully installed pre-compiled node_modules"
+
+      # Install any packages not covered by the pre-compiled archive
+      info "Syncing any new dependencies from package.json..."
+      cd "$repo_dir/app"
+      export NODE_OPTIONS="--max-old-space-size=512"
+      npm install --no-optional || warn "Some dependencies may not have installed correctly"
     else
       warn "Pre-compiled node_modules not found at $NODE_MODULES_ARCHIVE. Falling back to direct installation."
 
