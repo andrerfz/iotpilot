@@ -514,14 +514,15 @@ setup_application() {
     # First stash any local changes to avoid merge conflicts
     git config --global --add safe.directory "$repo_dir"
     git stash || warn "Failed to stash local changes"
-    git pull || warn "Failed to update repository"
+    git checkout "${IOTPILOT_BRANCH:-main}" || warn "Failed to checkout branch ${IOTPILOT_BRANCH:-main}"
+    git pull origin "${IOTPILOT_BRANCH:-main}" || warn "Failed to update repository"
   else
     # Make directory writable (in case it exists but isn't writable)
     mkdir -p "$repo_dir" || true
     chmod 755 "$repo_dir" || true
 
     info "Cloning repository..."
-    git clone https://github.com/andrerfz/iotpilot.git "$repo_dir" || error "Failed to clone repository"
+    git clone --branch "${IOTPILOT_BRANCH:-main}" https://github.com/andrerfz/iotpilot.git "$repo_dir" || error "Failed to clone repository"
     cd "$repo_dir" || return 1
   fi
 

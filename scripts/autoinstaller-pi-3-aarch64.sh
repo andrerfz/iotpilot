@@ -11,7 +11,7 @@
 set -e
 
 # Source common functions
-curl -sSL https://raw.githubusercontent.com/andrerfz/iotpilot/main/scripts/common-installer-functions.sh > /tmp/common-installer-functions.sh
+curl -sSL "https://raw.githubusercontent.com/andrerfz/iotpilot/${IOTPILOT_BRANCH:-main}/scripts/common-installer-functions.sh" > /tmp/common-installer-functions.sh
 source /tmp/common-installer-functions.sh
 
 # Check if running as root
