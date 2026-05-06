@@ -514,7 +514,8 @@ setup_application() {
     # First stash any local changes to avoid merge conflicts
     git config --global --add safe.directory "$repo_dir"
     git stash || warn "Failed to stash local changes"
-    git checkout "${IOTPILOT_BRANCH:-main}" || warn "Failed to checkout branch ${IOTPILOT_BRANCH:-main}"
+    git fetch origin || warn "Failed to fetch from remote"
+    git checkout "${IOTPILOT_BRANCH:-main}" || git checkout -b "${IOTPILOT_BRANCH:-main}" "origin/${IOTPILOT_BRANCH:-main}" || warn "Failed to checkout branch ${IOTPILOT_BRANCH:-main}"
     git pull origin "${IOTPILOT_BRANCH:-main}" || warn "Failed to update repository"
   else
     # Make directory writable (in case it exists but isn't writable)
